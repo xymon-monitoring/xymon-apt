@@ -1,0 +1,4 @@
+# debhelper-compat (= 14) needs debhelper 14, in trixie-backports only.
+Package: debhelper libdebhelper-perl
+Pin: release n=trixie-backports
+Pin-Priority: 500

@@ -1,0 +1,74 @@
+Backport to bookworm and noble.
+
+- debhelper-compat 14 needs debhelper 14 (bookworm-backports has 13.23,
+  noble 13.14): use 13.
+- debhelper 13 does not add the systemd-sysusers dependency that the
+  postinst needs (debhelper 14 does): add it to xymon-client.
+- sysusers "u!" (locked account) needs systemd >= 257 (bookworm 252,
+  noble 255): use "u", whose password field is already locked ("!*").
+- ImageMagick 6 has no "magick" command: use convert.
+- Upstream test suite on gcc < 13 and make < 4.4: see override_dh_auto_test.
+
+diff -ru a/debian/control b/debian/control
+--- a/debian/control
++++ b/debian/control
+@@ -4,10 +4,10 @@
+ Uploaders:
+  Roland Rosenfeld <roland@debian.org>,
+ Build-Depends:
+- debhelper-compat (= 14),
++ debhelper-compat (= 13),
+  dh-apache2,
+  dh-sequence-installsysusers,
+- imagemagick (>= 7),
++ imagemagick,
+  libc-ares-dev,
+  libldap-dev,
+  libpcre2-dev,
+@@ -61,6 +61,7 @@
+  lsb-release,
+  net-tools,
+  procps,
++ systemd | systemd-standalone-sysusers | systemd-sysusers,
+  ${shlibs:Depends},
+ Breaks:
+  xymon (<< 4.3.30-2),
+diff -ru a/debian/rules b/debian/rules
+--- a/debian/rules
++++ b/debian/rules
+@@ -50,6 +50,20 @@
+ 	env -u LANG LC_ALL=C.UTF-8 TZ=UTC ./build/makehtml.sh --version $(DEB_VERSION_UPSTREAM)
+ 	CFLAGS="$(CFLAGS) $(CPPFLAGS) $(LDFLAGS)" PKGBUILD=1 $(MAKE)
+ 
++override_dh_auto_test:
++	# xymon-apt backport: upstream's test suite on older toolchains.
++	# gcc < 13 (bookworm): the ASan runtime hangs on kernels with high
++	# vm.mmap_rnd_bits, so ASan tests never return. Turn ASan off for the
++	# suite: preset asan_usable()'s verdict, and drop the execute bit from
++	# tests calling -fsanitize directly (the suite runs only executables).
++	# make < 4.4 (bookworm, noble): -s does not imply --no-print-directory,
++	# and the rrd tests parse make's output.
++	if [ $$(gcc -dumpversion | cut -d. -f1) -lt 13 ]; then \
++		grep -rl -- -fsanitize=address tests | xargs -r chmod -x; \
++		export __xymon_tests_asan_usable=no; \
++	fi; \
++	GNUMAKEFLAGS=--no-print-directory dh_auto_test
++
+ override_dh_clean:
+ 	dh_clean
+ 	debconf-updatepo
+@@ -68,7 +82,7 @@
+ 	# Create static gifs
+ 	cd $S/usr/share/xymon/gifs && mkdir static && \
+ 		for gif in *.gif ; do \
+-			magick "$$gif[0]" xpm:- | magick xpm:- static/$$gif || exit 1 ; \
++			convert "$$gif[0]" xpm:- | convert xpm:- static/$$gif || exit 1 ; \
+ 		done && \
+ 		cd static && ln -s ../*.ico ../*.css .
+ 	# We depend on the -client package
+diff -ru a/debian/xymon-client.sysusers b/debian/xymon-client.sysusers
+--- a/debian/xymon-client.sysusers
++++ b/debian/xymon-client.sysusers
+@@ -1 +1 @@
+-u! xymon - "Xymon System Monitor" /var/lib/xymon -
++u xymon - "Xymon System Monitor" /var/lib/xymon -
