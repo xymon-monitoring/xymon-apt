@@ -27,8 +27,10 @@ keyfile=${XYMON_KEY_FILE:-$(dirname "$0")/../xymon-archive-keyring.asc}
 # The caveat is inside the generated file, not above this heredoc: it is for
 # whoever reads the installed file, and a comment here never reaches them.
 cat <<EOF
-# EXPERIMENTAL: an unofficial rebuild of Debian's xymon package. Layout and
-# repository structure may still change.
+# HIGHLY EXPERIMENTAL: an unofficial rebuild of Debian's xymon package, new
+# and with no production use. Versioning, suites and repository structure
+# may still change without notice -- do not point production machines at it
+# yet.
 #
 # After a release upgrade, fetch this file again for the new release:
 # the suite below is $codename and nothing moves it.

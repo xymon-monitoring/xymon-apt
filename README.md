@@ -8,7 +8,9 @@ Debian/Ubuntu counterpart of
 published the same way.
 
 > [!WARNING]
-> **Experimental.** Layout and repository structure may change.
+> **Highly experimental.** New packaging with no production use. Package
+> versioning, suites and repository structure may still change without
+> notice — do not point production machines at it yet.
 
 ## What it ships
 
