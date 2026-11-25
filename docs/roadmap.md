@@ -23,10 +23,24 @@ secrets, the seeded archive repository, and Pages.
 - **Review policy for this repo.** `main` is unprotected, as in xymon-rpm,
   whose [roadmap](https://github.com/xymon-monitoring/xymon-rpm/blob/main/docs/roadmap.md)
   weighs the options. Decide the two together.
-- **Snapshot and preview channels like xymon-rpm.** Not built. They would mean
-  Debian's `debian/` on top of upstream `main`, whose patches may not apply
-  there, and a second line of packages with its own retention. Worth it only
-  if someone wants to test `main` on Debian before a release.
+- **Snapshot and preview channels like xymon-rpm.** Wanted, not built yet.
+  What is in place so they can be added without touching a host: the suites
+  `<codename>-snapshot`, `-preview` and `-preview-next` are published empty,
+  `xymon.sources` names them, and `tests/vercmp.sh` pins that `X.Y.Z~…` sorts
+  between the current version and the rebuild of `X.Y.Z`. What is left:
+  - **the source.** Debian's `debian/` on top of upstream `main` or a
+    xymon-experimental preview, instead of a pinned `.dsc`. Debian's patches
+    may not apply there, so this is where the rule "nothing is repackaged"
+    meets its limit: decide what carries the difference.
+  - **the version**, in full. Only the `~` after the upstream version is
+    settled. xymon-rpm's has an upstream half and a packaging half, so a
+    packaging-only change republishes; the same is needed here.
+  - **filing by version** in `build/publish.sh`, which today files by the
+    artifact's name alone, and **a retention** per channel: the stable rule,
+    keep everything, does not fit a nightly build.
+  - **`-preview-next`** rebuilt from `-preview` on every publish, as there.
+  - **the triggers**: a nightly build of `main`, and xymon-rpm's
+    `previews.yml` for published previews.
 - **A keyring package**, the counterpart of xymon-rpm's `xymon-release`: a
   small `.deb` carrying the key and the sources file, so a key renewal reaches
   hosts through `apt upgrade` instead of a file fetched again by hand

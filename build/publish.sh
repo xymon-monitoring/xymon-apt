@@ -58,50 +58,82 @@ for dir in "$artifacts"/*/; do
 done
 echo "  $new new package(s)"
 
-echo "== regenerating metadata =="
-for dir in "$repodir"/pool/*/; do
-	[ -d "$dir" ] || continue
-	c=$(basename "$dir")
-	archs=
-	for f in "$dir"*.deb; do
+# The pre-release channels, each a suite of its own beside the stable one:
+# <codename>-snapshot, <codename>-preview, <codename>-preview-next, named as
+# xymon-rpm names its channels. Nothing builds into them yet.
+channels="snapshot preview preview-next"
+
+# The architectures a suite's pool holds, space-separated.
+archs_of() {
+	found=
+	for f in "$repodir/pool/$1"/*.deb; do
 		[ -e "$f" ] || continue
 		a=${f##*_}
 		a=${a%.deb}
-		case " $archs all " in *" $a "*) ;; *) archs="$archs $a" ;; esac
+		case " $found all " in *" $a "*) ;; *) found="$found $a" ;; esac
 	done
-	archs=${archs# }
-	[ -n "$archs" ] || continue
+	echo "${found# }"
+}
 
+# mksuite <suite> <archs>: rebuild and sign one suite's indexes.
+mksuite() {
+	s=$1
 	# Rebuilt whole from the pool: an index that lists a file the pool
 	# lacks, or the reverse, is the one state apt cannot recover from.
-	rm -rf "${repodir:?}/dists/$c"
-	for a in $archs; do
-		b="dists/$c/main/binary-$a"
+	rm -rf "${repodir:?}/dists/$s"
+	for a in $2; do
+		b="dists/$s/main/binary-$a"
 		mkdir -p "$repodir/$b"
-		# -a keeps *_<arch>.deb and *_all.deb.
-		(cd "$repodir" && apt-ftparchive -a "$a" packages "pool/$c" > "$b/Packages")
+		if [ -d "$repodir/pool/$s" ]; then
+			# -a keeps *_<arch>.deb and *_all.deb.
+			(cd "$repodir" && apt-ftparchive -a "$a" packages "pool/$s" > "$b/Packages")
+		else
+			: > "$repodir/$b/Packages"
+		fi
 		gzip -9kf "$repodir/$b/Packages"
 	done
 	# Written outside the suite, then moved in: apt-ftparchive hashes
 	# every index under the directory it is given, a Release file included.
-	(cd "$repodir/dists/$c" && apt-ftparchive \
+	(cd "$repodir/dists/$s" && apt-ftparchive \
 		-o APT::FTPArchive::Release::Origin=xymon-apt \
 		-o APT::FTPArchive::Release::Label=Xymon \
-		-o APT::FTPArchive::Release::Suite="$c" \
-		-o APT::FTPArchive::Release::Codename="$c" \
+		-o APT::FTPArchive::Release::Suite="$s" \
+		-o APT::FTPArchive::Release::Codename="$s" \
 		-o APT::FTPArchive::Release::Components=main \
-		-o APT::FTPArchive::Release::Architectures="$archs" \
-		release . > ../Release."$c".tmp && mv ../Release."$c".tmp Release)
+		-o APT::FTPArchive::Release::Architectures="$2" \
+		release . > ../Release."$s".tmp && mv ../Release."$s".tmp Release)
 	# The index is what is signed, not each .deb: apt trusts a package
 	# because the signed Release names the Packages file that names its hash.
 	# InRelease is what apt reads; Release.gpg is for older clients.
 	# shellcheck disable=SC2086
 	gpg --batch --yes ${key:+-u "$key"} --clearsign \
-		-o "$repodir/dists/$c/InRelease" "$repodir/dists/$c/Release"
+		-o "$repodir/dists/$s/InRelease" "$repodir/dists/$s/Release"
 	# shellcheck disable=SC2086
 	gpg --batch --yes ${key:+-u "$key"} --armor --detach-sign \
-		-o "$repodir/dists/$c/Release.gpg" "$repodir/dists/$c/Release"
-	echo "  dists/$c ($archs)"
+		-o "$repodir/dists/$s/Release.gpg" "$repodir/dists/$s/Release"
+	echo "  dists/$s ($2)"
+}
+
+echo "== regenerating metadata =="
+for dir in "$repodir"/pool/*/; do
+	[ -d "$dir" ] || continue
+	c=$(basename "$dir")
+	archs=$(archs_of "$c")
+	[ -n "$archs" ] || continue
+	mksuite "$c" "$archs"
+
+	# A channel with no package yet still gets a suite, signed and empty,
+	# for every stable suite. The xymon.sources a host fetched names its
+	# channels in a comment, to be enabled by adding them to Suites; with
+	# no Release file there, that edit fails apt update on this repository
+	# instead of finding nothing. So the suites exist from the first
+	# publish, and the file never has to be fetched again when a channel
+	# starts.
+	case "$c" in *-snapshot|*-preview|*-preview-next) continue ;; esac
+	for ch in $channels; do
+		[ -z "$(archs_of "$c-$ch")" ] || continue
+		mksuite "$c-$ch" "$archs"
+	done
 done
 
 echo "== published tree =="

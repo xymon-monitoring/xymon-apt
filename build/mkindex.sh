@@ -72,6 +72,7 @@ done
 suites=
 for d in "$repodir"/dists/*/; do
 	[ -d "$d" ] || continue
+	case "$(basename "$d")" in *-snapshot|*-preview|*-preview-next) continue ;; esac
 	suites="$suites $(basename "$d")"
 done
 suites=${suites# }
@@ -108,6 +109,15 @@ EOF
 </table>
 <p>One suite per release, component <code>main</code>. Every published
 version stays available; <code>apt list -a xymon</code> shows them.</p>
+
+<h2 id="channels">Channels</h2>
+<p>Each release also has three pre-release suites, named as
+<a href="https://github.com/xymon-monitoring/xymon-rpm">xymon-rpm</a> names
+its channels: <code>&lt;release&gt;-snapshot</code>,
+<code>&lt;release&gt;-preview</code> and
+<code>&lt;release&gt;-preview-next</code>. <strong>They are empty
+today</strong>: nothing is built into them yet. <code>xymon.sources</code>
+says how to enable one.</p>
 
 <h2>Signing</h2>
 <p>The repository metadata is signed. Verify the

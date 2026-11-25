@@ -54,6 +54,20 @@ below "4.3.31-1~~xymon24.04+9" "4.3.31-1build1"
 below "4.3.31-1~~xymon13+9" "4.3.31-2~~xymon13+1"
 below "4.3.31-2~~xymon13+9" "4.3.32-1~~xymon13+1"
 
+# Pre-release channels are not built yet, but the versions above must leave
+# room for them: a snapshot or a preview of the next upstream version is
+# X.Y.Z~<something>, which has to sort above everything of the current
+# version, official packages included, and below the rebuild of X.Y.Z itself.
+# The exact strings are illustrations; the "~" after the upstream version is
+# the commitment.
+below "4.3.31-1~~xymon13+9" "4.3.32~git202611091355.2dcad5d-1~~xymon13+1"
+below "4.3.31-1+deb13u1" "4.3.32~git202611091355.2dcad5d-1~~xymon13+1"
+below "4.3.32~git202611091355.2dcad5d-1~~xymon13+1" "4.3.32~git202611102200.fd64efe-1~~xymon13+1"
+below "4.3.32~git209912312359.fffffff-1~~xymon13+9" "4.3.32-1~~xymon13+1"
+below "4.3.31-1~~xymon13+9" "4.3.32~preview1-1~~xymon13+1"
+below "4.3.32~preview9-1~~xymon13+1" "4.3.32~preview10-1~~xymon13+1"
+below "4.3.32~preview10-1~~xymon13+9" "4.3.32-1~~xymon13+1"
+
 if [ -n "${1:-}" ]; then
 	. /etc/os-release
 	set -- "$1"/xymon_*.deb

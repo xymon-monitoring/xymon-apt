@@ -128,6 +128,19 @@ check "apt's candidate for xymon-client is the newest published rebuild" \
 check "apt can still see the superseded version" \
 	'apt-cache madison xymon-client | grep -qF "$old"'
 
+# --- the pre-release channels exist, empty, from the first publish ---
+for ch in snapshot preview preview-next; do
+	check "the suite $c-$ch exists, signed" 'gpg --batch --verify "$tree/dists/$c-$ch/InRelease"'
+	check "and lists no package" '[ ! -s "$tree/dists/$c-$ch/main/binary-$arch/Packages" ]'
+done
+check "the generated file names the channels a host can add" 'grep -q "^#   $c-snapshot " "$list"'
+# Enabled the way the file says: appended to Suites.
+sed -i "s/^Suites: .*/Suites: $c $c-snapshot $c-preview-next/" "$list"
+check "apt-get update accepts the empty channels beside the stable suite" \
+	'apt-get update -o Dir::Etc::sourcelist="$list" -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0 2>&1 | tee "$work/update2.log"; ! grep -Eq "^(E|W):" "$work/update2.log"'
+check "and the candidate is still the stable suite's" \
+	'[ "$(apt-cache policy xymon-client | awk "/Candidate:/{print \$2}")" = "$new" ]'
+
 # A repository signed by another key is refused: the Signed-By in the
 # generated file is what binds it, not a key the host happens to trust.
 XYMON_REPO_BASEURL="file://$tree" "$root/build/mksources.sh" "$c" > "$list"
