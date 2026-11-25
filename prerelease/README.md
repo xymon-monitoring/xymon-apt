@@ -27,10 +27,13 @@ Today:
 `skip-tests` is separate from those: it lists upstream tests a pre-release
 build does not run, each with the upstream pull request whose merge removes
 the line. It is for a test that fails for a reason upstream has to fix, where
-no rebase here would help. Today it holds one,
-`tests/web/showgraph-rrd-error-exit.sh`, until xymon#1024: `showgraph`
-crashes on about one failed graph in two hundred on Debian 12, and the test
-makes two hundred. Nothing removes a line by itself; the build log says
+no rebase here would help. Today it holds two:
+`tests/web/showgraph-rrd-error-exit.sh`, until xymon#1024, since `showgraph`
+crashes on about one failed graph in two hundred on Debian 12 and the test
+makes two hundred; and `tests/server/serverconfig-local-client.sh`, which
+`preview-4.3.32-5` carries in a form that fails on Debian's `XYMSRV`
+arrangement, until a newer preview. A preview is cut from `main` at one
+moment, so it can lack a test fix `main` already has. Nothing removes a line by itself; the build log says
 `not running upstream test ...` every time, and that is the reminder.
 
 ## This directory is a reading, not a fact
