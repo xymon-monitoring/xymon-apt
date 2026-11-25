@@ -22,19 +22,41 @@ Today:
 | `debian/patches/13_apache_access_local.patch` | Debian's patch, rebased: upstream reordered both Apache files |
 | `debian/xymon.install` | Debian's file without `build/renametasks`, `build/renamevars` and `build/upgrade430.sh`: upstream removed the Big Brother and Hobbit upgrade path, and nothing in Debian's maintainer scripts calls them |
 | `debian/xymon.docs`, `debian/xymon-client.docs` | Debian's files without `docs/Renaming-430.txt` and `docs/upgrade-to-430.txt`, removed upstream with the same upgrade path |
-| `10-rules.patch` | `debian/rules`: sets `XYMONRUNDIR` and `XYMONCLIENTRUNDIR` to `/var/run/xymon`, which upstream now reads at build time; sets `XYMONTMP` and `XYMONCLIENTLOGS` on the installed `xymonclient.cfg`, since `main` and the previews write those lines differently and a patch fits one; and no longer expects `man7` to be empty in the server package, since upstream added `xymon-tls.7` |
+| `10-rules.patch` | `debian/rules`: sets `XYMONRUNDIR` and `XYMONCLIENTRUNDIR` to `/var/run/xymon`, which upstream now reads at build time; names the client's tmp and log directories at build time too, `INSTALLCLIENTTMPDIR` and `INSTALLCLIENTLOGDIR`, and lets Debian's own two links replace the ones upstream then makes; sets `XYMONTMP` and `XYMONCLIENTLOGS` on the installed `xymonclient.cfg` where the tree does not name them by reference (next section); and no longer expects `man7` to be empty in the server package, since upstream added `xymon-tls.7` |
 
 `skip-tests` is separate from those: it lists upstream tests a pre-release
 build does not run, each with the upstream pull request whose merge removes
 the line. It is for a test that fails for a reason upstream has to fix, where
 no rebase here would help. Today it holds two:
-`tests/web/showgraph-rrd-error-exit.sh`, until xymon#1024, since `showgraph`
+`tests/web/showgraph-rrd-error-exit.sh`, until xymon#1024 is in `main` and in
+the newest preview, since `showgraph`
 crashes on about one failed graph in two hundred on Debian 12 and the test
 makes two hundred; and `tests/server/serverconfig-local-client.sh`, which
 `preview-4.3.32-5` carries in a form that fails on Debian's `XYMSRV`
 arrangement, until a newer preview. A preview is cut from `main` at one
 moment, so it can lack a test fix `main` already has. Nothing removes a line by itself; the build log says
 `not running upstream test ...` every time, and that is the reminder.
+
+## The client's tmp and log directories, and xymon#906
+
+Debian's `12_hobbitvars.patch` writes `/var/lib/xymon/tmp` and
+`/var/log/xymon` into `xymonclient.cfg`. Upstream is taking that over, in
+steps, and `10-rules.patch` follows whichever step the tree it builds has:
+
+| The tree has | `xymonclient.cfg` says | `10-rules.patch` |
+| --- | --- | --- |
+| xymon#411 only (`main` today, `preview-4.3.32-5`) | `$XYMONHOME/tmp`, or a placeholder in that preview | sets the two lines on the installed file, to Debian's values |
+| xymon#906 (not merged yet; then `main`, and any preview that carries it) | `$XYMONCLIENTTMPDIR`, `$XYMONCLIENTLOGDIR`: the programs hold the directories | nothing: the two variables it passes to configure are what the programs hold |
+
+Both rows give the same package to a host: `tests/install.sh` asks the
+installed client's programs where they write, and expects Debian's two
+directories whatever the file says. Built from xymon#906's head on trixie
+and bookworm, the second row is the one taken.
+
+When xymon#906 is merged and every published preview has it, the first row's
+branch in `debian/rules` can go: the `else` of the test on
+`xymonclient.cfg`. Until then both are needed, as a preview is cut from
+`main` at one moment and can be older than a merge.
 
 ## This directory is a reading, not a fact
 

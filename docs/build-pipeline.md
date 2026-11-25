@@ -11,7 +11,8 @@ package, and **pre**, the same packaging on an upstream tree (README
   for both it is the drift detector, of upstream against Debian's packaging
   and of the distributions against the install;
 - manual dispatch. With `xymon_ref` empty it builds the stable line alone;
-  with `main`, a branch or sha of xymon, or `preview-X.Y.Z-N`, the pre-release
+  with `main`, a branch or sha of xymon, a pull request of it as `pr/NNN`, or
+  `preview-X.Y.Z-N`, the pre-release
   line alone from that source.
 
 The nightly `previews.yml` (`47 1 * * *`) dispatches it too: for each

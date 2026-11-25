@@ -102,7 +102,7 @@ release of their version, which outranks them.
 which does not exist yet: Debian's packaging of 4.3.31, from the same pinned
 `.dsc`, on the upstream tree. Where that packaging does not fit the newer
 upstream, [`prerelease/`](prerelease/README.md) carries the difference: today
-two of Debian's patches rebased, two changes to `debian/rules`, and an install list without the upgrade helpers upstream removed. So a
+two of Debian's patches rebased, a few changes to `debian/rules`, and install and docs lists without the upgrade files upstream removed. So a
 pre-release is this repository's reading of what Debian's package of the next
 version will be, and upgrades to it when it arrives.
 
@@ -195,7 +195,8 @@ Push, pull request and the nightly cron build both lines. What publishes:
 - **preview**: a dispatch with `xymon_ref=preview-X.Y.Z-N`, which the nightly
   **previews** workflow sends for each new published preview.
 
-A dispatch of any other ref, a branch or a sha of xymon, builds artifacts
+A dispatch of any other ref, a branch, a sha or a pull request of xymon
+(`pr/NNN`), builds artifacts
 only. The published tree lives in `xymon-monitoring/xymon-apt-archive` and is
 deployed to Pages. What a maintainer sets up once is in
 [docs/signing.md](docs/signing.md) *Maintainer setup*.
@@ -213,7 +214,7 @@ docker run --rm -v "$PWD:/w:ro" debian:trixie /w/tests/install.sh /w/out upgrade
 A snapshot of `main`, or a preview:
 
 ```sh
-./build/prepare-source.sh main upstream-src      # or preview-4.3.32-5
+./build/prepare-source.sh main upstream-src      # or preview-4.3.32-5, or pr/906
 docker run --rm -v "$PWD:/w" debian:trixie /w/build/build-deb.sh /w/out 1 /w/upstream-src
 ```
 
