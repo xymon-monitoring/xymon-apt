@@ -10,7 +10,9 @@
 
 # showgraph crashes on about one failed graph in two hundred on Debian 12
 # (Pango 1.50.12), so this test of 200 fails there more often than not.
-tests/web/showgraph-rrd-error-exit.sh	xymon#1024
+# Fixed by xymon#1024. A preview is cut from main at one moment, so the
+# line stays until that is merged and the newest preview has it as well.
+tests/web/showgraph-rrd-error-exit.sh	xymon#1024, in main and in the newest preview
 
 # Checks that xymonserver.cfg.DIST sets XYMSRV to loopback. Debian's
 # 12_hobbitvars.patch takes XYMSRV out of that file and includes one that

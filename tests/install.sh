@@ -26,6 +26,19 @@ dpkg --compare-versions "$new" lt "$deb~bpo00+1" || { echo "FAIL: $new sorts abo
 echo "xymon $new installed"
 
 /etc/init.d/xymon restart
+
+# Where the client writes its own files, as its programs resolve them from
+# xymonclient.cfg. Debian's package has them in /var; how the file says so
+# differs by upstream version -- a path Debian's patch wrote, or from
+# xymon#906 a reference the programs hold -- and this is the same either way.
+# Read from the environment xymoncmd hands a program: 4.3.31's does not take
+# a command with arguments after --env.
+dirs=$(XYMONCLIENTHOME=/usr/lib/xymon/client /usr/lib/xymon/client/bin/xymoncmd \
+    --env=/etc/xymon/xymonclient.cfg env 2>/dev/null |
+    awk -F= '$1 == "XYMONTMP" {t=$2} $1 == "XYMONCLIENTLOGS" {l=$2} END {print t "|" l}') || true
+[ "$dirs" = "/var/lib/xymon/tmp|/var/log/xymon" ] ||
+    { echo "FAIL ($MODE): the client's tmp and log directories resolve to '$dirs', not /var/lib/xymon/tmp|/var/log/xymon"; exit 1; }
+echo "client directories: $dirs"
 host=$(awk '$1 ~ /^[0-9]/ && $2 != "" {print $2; exit}' /etc/xymon/hosts.cfg)
 echo "waiting for $host to report"
 for _ in $(seq 60); do

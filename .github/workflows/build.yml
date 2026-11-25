@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       xymon_ref:
-        description: 'Empty: the stable rebuild of Debian''s package. Or a pre-release source: main, a branch or sha of xymon, or preview-X.Y.Z-N'
+        description: 'Empty: the stable rebuild of Debian''s package. Or a pre-release source: main, a branch or sha of xymon, pr/NNN, or preview-X.Y.Z-N'
         required: false
         default: ''
       # A published version is immutable: after a change in backport/ (e.g. a
@@ -224,7 +224,8 @@ jobs:
     # dispatch naming main) and a dispatched preview-* tag. Its version
     # names the upstream commit and the packaging commit, so a build that
     # changes neither brings nothing new and publishes nothing. A dispatch
-    # of any other ref -- a branch, a sha -- leaves artifacts only.
+    # of any other ref -- a branch, a sha, a pull request -- leaves artifacts
+    # only.
     if: >-
       github.event_name != 'pull_request'
       && github.ref == 'refs/heads/main'

@@ -4,9 +4,10 @@
 #
 #   prepare-source.sh <xymon-ref> <source-dir>
 #
-# <xymon-ref> is a branch or a sha of xymon-monitoring/xymon, or a
-# preview-X.Y.Z-N tag, which xymon-experimental makes: main plus the pull
-# requests of X.Y.Z and of the unreleased milestones before it.
+# <xymon-ref> is a branch or a sha of xymon-monitoring/xymon; a pull request
+# of it, as pr/NNN; or a preview-X.Y.Z-N tag, which xymon-experimental makes:
+# main plus the pull requests of X.Y.Z and of the unreleased milestones
+# before it.
 #
 # Leaves in <source-dir>, for build/build-deb.sh:
 #   tree/              git archive of the ref: nothing modified after the clone
@@ -43,7 +44,21 @@ preview-*)
 	upstream="${m%-*}~preview${m##*-}"
 	;;
 *)
-	git -C "$dir/git" checkout -q "$ref"
+	case "$ref" in
+	pr/*)
+		# A plain clone does not carry refs/pull/*. The head of a pull
+		# request moves, so say which commit this build came from.
+		pr=${ref#pr/}
+		echo "$pr" | grep -Eq '^[0-9]+$' ||
+			{ echo "prepare-source.sh: $ref is not pr/NNN" >&2; exit 1; }
+		git -C "$dir/git" fetch -q origin "pull/$pr/head:pr-$pr"
+		git -C "$dir/git" checkout -q "pr-$pr"
+		echo "pull request #$pr at $(git -C "$dir/git" rev-parse --short=7 HEAD)"
+		;;
+	*)
+		git -C "$dir/git" checkout -q "$ref"
+		;;
+	esac
 	# The version upstream's main is becoming: include/version.h says
 	# X.Y.Z-dev from the release before it on; the suffix goes.
 	base=$(sed -n 's/^#define VERSION "\([0-9][0-9.]*\).*"$/\1/p' "$dir/git/include/version.h")
@@ -58,12 +73,13 @@ esac
 # The last commit that can change a package -- not HEAD. A published version
 # is immutable, so without this half a packaging-only change would rebuild
 # the previous run's version and never ship. Keyed on HEAD instead, a docs
-# or test commit would mint a new version for an identical package.
+# or test commit would mint a new version for an identical package; so
+# would a README under one of these paths, which is left out.
 pkgpaths="build backport prerelease source.dsc.sha256 .github"
 # shellcheck disable=SC2086
-pkgdate=$(TZ=UTC git -C "$here" log -1 --format=%cd --date=format-local:%Y%m%d%H%M -- $pkgpaths)
+pkgdate=$(TZ=UTC git -C "$here" log -1 --format=%cd --date=format-local:%Y%m%d%H%M -- $pkgpaths ':(exclude)*.md')
 # shellcheck disable=SC2086
-pkgref=$(git -C "$here" log -1 --format=%h --abbrev=7 -- $pkgpaths)
+pkgref=$(git -C "$here" log -1 --format=%h --abbrev=7 -- $pkgpaths ':(exclude)*.md')
 [ -n "$pkgdate" ] && [ -n "$pkgref" ] ||
 	{ echo "prepare-source.sh: no packaging commit found -- a shallow clone?" >&2; exit 1; }
 

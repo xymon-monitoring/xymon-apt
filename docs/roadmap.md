@@ -50,9 +50,17 @@ secrets, the seeded archive repository, and Pages.
   what would shrink that surface: most of `12_hobbitvars.patch` is paths that
   a configure variable could carry, as `XYMONRUNDIR` now does for pidfiles.
 - **Remove `prerelease/skip-tests` lines as their upstream fixes merge.**
-  Two today: `tests/web/showgraph-rrd-error-exit.sh`, until xymon#1024, and
+  Two today: `tests/web/showgraph-rrd-error-exit.sh`, until xymon#1024 is in
+  `main` and in the newest preview, and
   `tests/server/serverconfig-local-client.sh`, until a preview newer than
   `preview-4.3.32-5`.
+- **Drop the fallback for the client's tmp and log directories** in
+  `prerelease/10-rules.patch` once xymon#906 is merged and every published
+  preview has it ([prerelease/README.md](../prerelease/README.md) has the
+  two cases). Debian's `12_hobbitvars.patch` can lose its two
+  `xymonclient.cfg` paths at the same point, by setting
+  `INSTALLCLIENTTMPDIR` and `INSTALLCLIENTLOGDIR`: worth telling its
+  maintainers, who asked for it in xymon#904.
 - **One preview needing what `main` does not.** `prerelease/` is shared; a
   pull request in a preview that touches the same lines needs its own rebase
   and there is nowhere to put it.

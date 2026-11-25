@@ -42,7 +42,10 @@ several times the size of the release's.
   whole builds, `-preview-next` holding the lowest unreleased milestone and
   moving on after a release, the channels served when empty, and what `apt`
   picks with each suite added.
-- **`install.sh`** is the only suite that checks the thing *monitors*: it
+- **`install.sh`** asks the installed client's programs where they write
+  their own files, and expects Debian's two directories however the
+  packaged `xymonclient.cfg` says so. It is also the only suite that checks
+  the thing *monitors*: it
   starts the server and waits until its own client's data is analysed into
   `cpu`, `disk`, `memory` and `procs`. In `upgrade` mode it starts from the
   distribution's official xymon, which is the compatibility promise this
