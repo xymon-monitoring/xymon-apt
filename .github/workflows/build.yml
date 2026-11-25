@@ -3,13 +3,16 @@ name: build
 # Mirrors xymon-monitoring/xymon-rpm's build.yml: lint, build per target,
 # tests gate publishing, publish on request, deploy Pages in its own job.
 # What is built: Debian's xymon source package pinned in source.dsc.sha256,
-# plus backport/ patches -- an unofficial backport.
+# plus backport/ patches -- an unofficial backport. docs/build-pipeline.md
+# has the job graph and the reasons.
 on:
   push:
     paths-ignore: ['**.md', 'docs/**']
   pull_request:
     paths-ignore: ['**.md', 'docs/**']
   # Weekly: catches a distro update that breaks the build or the install.
+  # Not nightly as in xymon-rpm: the source is a pinned Debian upload, not a
+  # moving branch, so what can drift is the distributions alone.
   schedule:
     - cron: '17 0 * * 1'
   workflow_dispatch:
@@ -32,22 +35,39 @@ env:
   RELEASENUM: ${{ github.event.inputs.releasenum || '1' }}
 
 jobs:
+  # publish waits on it for the sake of build/publish.sh, not the packages:
+  # sh executes a file as it reads it, so a syntax error half way down signs
+  # and copies part of a tree before it stops.
   lint:
     runs-on: ubuntu-latest
+    # GitHub's own limit is 6 hours, which is how long a hung mirror could
+    # hold a job. The slowest job here takes about 10 minutes.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
       - name: shellcheck the shell this repository owns
         run: |
           set -eu
+          # Discovered by shebang, not by *.sh, so a script added without an
+          # extension is linted too.
+          # An `if`, not `&&`: the loop's status is its last command's, and
+          # under set -e a tree whose last file is not a script would stop
+          # the step here. backport/noble is a symlink to a directory.
           git ls-files | while read -r f; do
-            head -1 "$f" | grep -qE '^#!.*/(env +)?(sh|bash|dash)$' && printf '%s\n' "$f"
+            [ -f "$f" ] || continue
+            if head -1 "$f" | grep -qE '^#!.*/(env +)?(sh|bash|dash)$'; then
+              printf '%s\n' "$f"
+            fi
           done > /tmp/shell-files
-          [ -s /tmp/shell-files ] || { echo "no shell script found"; exit 1; }
+          [ -s /tmp/shell-files ] ||
+            { echo "no shell script found -- the shebang discovery has broken"; exit 1; }
+          sed 's/^/  /' /tmp/shell-files
           xargs shellcheck -S error < /tmp/shell-files
 
   deb:
     name: ${{ matrix.codename }}-${{ matrix.arch }}
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       # Pinned codenames, never "stable"/"latest": a moving tag would move
@@ -65,7 +85,19 @@ jobs:
       - name: Build
         run: |
           docker run --rm -v "$PWD:/w" "${{ matrix.image }}" \
-            /w/build-deb.sh /w/out "$RELEASENUM"
+            /w/build/build-deb.sh /w/out "$RELEASENUM"
+
+      # Cheapest first: a break should fail at the cheapest suite that can
+      # see it (docs/testing.md). Each in a fresh container, so none can
+      # pass on what an earlier one installed.
+      - name: Version ordering
+        run: docker run --rm -v "$PWD:/w:ro" "${{ matrix.image }}" /w/tests/vercmp.sh /w/out
+
+      - name: Package contents
+        run: docker run --rm -v "$PWD:/w:ro" "${{ matrix.image }}" /w/tests/packages.sh /w/out
+
+      - name: Publish into a throwaway tree
+        run: docker run --rm -v "$PWD:/w:ro" "${{ matrix.image }}" /w/tests/publish.sh /w/out
 
       - name: Install test (fresh)
         run: docker run --rm -v "$PWD:/w:ro" "${{ matrix.image }}" /w/tests/install.sh /w/out fresh
@@ -86,6 +118,7 @@ jobs:
   # calls no-op there. One target is enough: the units are the same everywhere.
   systemd:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: deb
     steps:
       - uses: actions/checkout@v6
@@ -106,11 +139,14 @@ jobs:
           EOF
           docker run -d --name sd --privileged --cgroupns=host \
             -v /sys/fs/cgroup:/sys/fs/cgroup:rw -v "$PWD:/w:ro" xymon-systemd
+          # systemd needs a moment before it will answer; fail rather than
+          # run the assertions against a half-started manager.
           for _ in $(seq 30); do
             state=$(docker exec sd systemctl is-system-running 2>/dev/null || true)
             case "$state" in running|degraded) break ;; esac
             sleep 2
           done
+          case "$state" in running|degraded) ;; *) echo "systemd did not come up: $state"; exit 1 ;; esac
           docker exec sd /w/tests/systemd.sh /w/out
       - if: always()
         run: docker rm -f sd || true
@@ -118,38 +154,63 @@ jobs:
   publish:
     needs: [lint, deb, systemd]
     # Only a deliberate, dispatched build from main: a pull request never
-    # reaches the key, and a push/cron rebuild must not overwrite a published
-    # version with different bytes.
+    # reaches the key, and a push or cron rebuild of a published version
+    # would produce different bytes under the same name, which publish.sh
+    # leaves out -- a run that looks like a publish and ships nothing.
     if: >-
       github.event_name == 'workflow_dispatch'
       && github.event.inputs.publish == '1'
       && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Two overlapping runs would both clone the archive and both force-push
+    # it, and the second would overwrite the first's packages rather than
+    # fail. This group is what makes the force-push below safe.
     concurrency:
-      group: publish
+      group: publish-archive
       cancel-in-progress: false
     outputs:
       ok: ${{ steps.key.outputs.ok }}
     steps:
+      # main's tip, not this run's sha: the packages belong to the run that
+      # built them, but the generators and the key describe the repository
+      # as it stands now. A run queued behind a newer one would otherwise
+      # regenerate the index pages from an older tree and push them over it.
       - uses: actions/checkout@v6
+        with:
+          ref: main
 
-      # Same key as xymon-rpm (secret GPG_PRIVATE_KEY). No key (a fork):
-      # stay green and publish nothing.
-      - name: Check for a signing key
+      # The secrets context is not available to a job-level `if`, so the job
+      # always starts and stops here until both secrets are configured. Same
+      # key as xymon-rpm. No key (a fork): stay green and publish nothing.
+      - name: Check for the publishing secrets
         id: key
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          ARCHIVE_DEPLOY_KEY: ${{ secrets.ARCHIVE_DEPLOY_KEY }}
         run: |
-          if [ -n "$GPG_PRIVATE_KEY" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"
-          else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "::notice::No GPG_PRIVATE_KEY secret; nothing published."; fi
+          if [ -n "$GPG_PRIVATE_KEY" ] && [ -n "$ARCHIVE_DEPLOY_KEY" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GPG_PRIVATE_KEY or ARCHIVE_DEPLOY_KEY is not configured; nothing published. See docs/signing.md."
+          fi
 
       - name: Import the signing key
         if: steps.key.outputs.ok == 'true'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
+          set -eu
           printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
-          echo "KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')" >> "$GITHUB_ENV"
+          fpr=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}')
+          # The generated xymon.sources carries the public key committed
+          # here. Signing with any other would publish a repository every
+          # host refuses.
+          want=$(sed -n 's/^ *FINGERPRINT=//p' fingerprint | tr -d ' ')
+          [ "$fpr" = "$want" ] ||
+            { echo "::error::the secret key is $fpr, the fingerprint file names $want"; exit 1; }
+          echo "XYMON_GPG_KEY=$fpr" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@v4
         if: steps.key.outputs.ok == 'true'
@@ -157,23 +218,93 @@ jobs:
           pattern: pub-*
           path: artifacts
 
-      - name: Build the signed repository
+      # The published tree lives in xymon-apt-archive, as xymon-rpm's does in
+      # xymon-rpm-archive: a clone of the packaging fetches no packages, and
+      # the tree has a copy a person can check out. github.token reaches this
+      # repository alone, so the archive needs a credential of its own: a
+      # deploy key, which reaches exactly one repository and belongs to no
+      # person (docs/signing.md).
+      - name: Set up the archive deploy key
+        if: steps.key.outputs.ok == 'true'
+        env:
+          ARCHIVE_DEPLOY_KEY: ${{ secrets.ARCHIVE_DEPLOY_KEY }}
+        run: |
+          set -eu
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$ARCHIVE_DEPLOY_KEY" > "$HOME/.ssh/archive"
+          chmod 600 "$HOME/.ssh/archive"
+          # Pinned rather than scanned: ssh-keyscan trusts whatever answers.
+          # This is github.com's ed25519 host key as published at /meta.
+          printf '%s\n' 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' \
+            > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          cat > "$HOME/.ssh/config" <<EOF
+          Host github.com
+            IdentityFile $HOME/.ssh/archive
+            IdentitiesOnly yes
+            UserKnownHostsFile $HOME/.ssh/known_hosts
+          EOF
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Check out the published tree
+        if: steps.key.outputs.ok == 'true'
+        run: |
+          set -eu
+          export GIT_SSH_COMMAND="ssh -F $HOME/.ssh/config"
+          # No fallback that starts empty. The archive is seeded, so a clone
+          # that fails is a failure, and publishing on top of nothing would
+          # serve this run's packages and drop every earlier version.
+          git clone --branch main --depth 1 \
+            git@github.com:xymon-monitoring/xymon-apt-archive.git published
+          echo "  $(find published -name '*.deb' | wc -l) packages already published"
+
+      - name: Sign and publish
         if: steps.key.outputs.ok == 'true'
         run: |
           set -eu
           command -v apt-ftparchive >/dev/null || sudo apt-get install -y apt-utils
-          for d in artifacts/pub-*; do
-            c=$(basename "$d" | cut -d- -f2)
-            mkdir -p "debs/$c" && cp "$d"/*.deb "debs/$c/"
+          ./build/publish.sh artifacts published
+          cp xymon-archive-keyring.asc published/xymon-archive-keyring.asc
+          gpg --batch --yes --dearmor -o published/xymon-archive-keyring.gpg xymon-archive-keyring.asc
+          # One sources file per suite the tree serves, not per target built:
+          # a suite whose target left the matrix is still published.
+          for d in published/dists/*/; do
+            c=$(basename "$d")
+            mkdir -p "published/$c"
+            ./build/mksources.sh "$c" > "published/$c/xymon.sources"
           done
-          ./make-repo.sh debs site "$KEYID"
-          gpg --armor --export "$KEYID" > site/xymon-archive-keyring.asc
-          touch site/.nojekyll
+          # GitHub Pages has no autoindex, so without these every directory
+          # in a browser is a bare 404.
+          ./build/mkindex.sh published
+          touch published/.nojekyll
 
+      - name: Commit and push
+        if: steps.key.outputs.ok == 'true'
+        run: |
+          set -eu
+          cd published
+          export GIT_SSH_COMMAND="ssh -F $HOME/.ssh/config"
+          git config user.name "xymon-apt publisher"
+          git config user.email "noreply@github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing new to publish"
+          else
+            # Replace the branch rather than add to it: nothing reads an
+            # older commit, and the tree itself keeps every version.
+            git checkout -q --orphan published-now
+            git commit -q -m "Publish packages from ${GITHUB_SHA::7}"
+            git push --force origin published-now:main
+          fi
+
+      # After the push, on purpose: if this or the deployment fails, the
+      # tree is already saved and the next publish resumes from it. The
+      # action's own tar leaves out .git.
       - uses: actions/upload-pages-artifact@v3
         if: steps.key.outputs.ok == 'true'
         with:
-          path: site
+          path: published
 
   # Its own job: the github-pages environment can refuse a deployment, and a
   # refusal blocks a whole job. Needs Settings > Pages > Source: GitHub Actions.
@@ -181,6 +312,7 @@ jobs:
     needs: publish
     if: needs.publish.result == 'success' && needs.publish.outputs.ok == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       pages: write
       id-token: write

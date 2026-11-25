@@ -1,7 +1,7 @@
 #!/bin/sh
 # Rebuild Debian's xymon source package for a Debian/Ubuntu release, inside
 # that release's container -- an unofficial backport.
-#   Usage: build-deb.sh <out-dir> [releasenum]
+#   Usage: build/build-deb.sh <out-dir> [releasenum]
 #
 # Source: the .dsc pinned in source.dsc.sha256 (Debian's own upload, fetched
 # from the Debian archive); dpkg-source then checks every file the .dsc lists.
@@ -15,7 +15,7 @@
 # cleanly; VERSION_ID (12, 13, 24.04) grows on a dist-upgrade.
 set -eu
 OUT=$(realpath -m "$1") REL=${2:-1}
-HERE=$(dirname "$(realpath "$0")")
+HERE=$(dirname "$(dirname "$(realpath "$0")")")
 . /etc/os-release
 CODENAME=${VERSION_CODENAME:?}
 
