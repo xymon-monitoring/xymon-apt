@@ -15,8 +15,8 @@ there:
 sections *Where a change gets written down*, *Shortening*, *Titles*,
 *Descriptions* and *The last pass*. They apply here unchanged, reading "the
 patch header" for "the spec comment". The title's component is a name this
-tree uses: `backport:`, `build:`, `publish:`, `tests:`, `ci:`, `docs:`,
-`README:`. What follows is what differs.
+tree uses: `backport:`, `prerelease:`, `build:`, `publish:`, `tests:`, `ci:`,
+`docs:`, `README:`. What follows is what differs.
 
 ## Which repository
 
@@ -32,6 +32,7 @@ it as a release's toolchain forces.**
 | what the Debian package installs, requires, starts or migrates | Debian: <https://salsa.debian.org/debian/xymon>, or a bug against the `xymon` package |
 | what an older release's toolchain cannot build of that package | here, in `backport/<codename>/` |
 | a fix Debian has not uploaded yet, a security fix above all | here, in `backport/all/`, naming the Debian bug or commit that will delete it |
+| what Debian's packaging needs to build an upstream newer than the one it packages | here, in `prerelease/`, keeping every choice Debian made |
 | how the packages are built, tested, signed and published | here |
 | the old `debian/` directory inside `xymon-monitoring/xymon` | nowhere — it dates from 2019 and builds nothing anyone ships |
 
@@ -42,7 +43,7 @@ migration, would hold only until the first file that differs.
 
 ### A patch names what deletes it
 
-Everything in `backport/` is interim by construction: a toolchain patch goes
+Everything in `backport/` and `prerelease/` is interim by construction: a toolchain patch goes
 when its release leaves the matrix or Debian's package no longer needs the
 newer tool, and a fix in `all/` goes when Debian ships it. So **each patch
 says in its header what it is for and what makes it removable**, a Debian bug

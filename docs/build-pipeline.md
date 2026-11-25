@@ -1,13 +1,23 @@
 # The build pipeline
 
 One workflow, `.github/workflows/build.yml`, builds every target, gates on the
-tests, and publishes on request. It runs on:
+tests, and publishes. It builds two lines: **stable**, the rebuild of Debian's
+package, and **pre**, the same packaging on an upstream tree (README
+*Channels*). It runs on:
 
-- every push and pull request that changes more than documentation;
-- a weekly cron, which catches a distribution update that breaks the build or
-  the install. Weekly rather than nightly as in xymon-rpm, because the source
-  is a pinned Debian upload, not a moving branch;
-- manual dispatch, which is also the only way to publish.
+- every push and pull request that changes more than documentation: both
+  lines, so a change is tested against the snapshot source too;
+- a nightly cron, `17 0 * * *`: both lines. For the snapshot it is the build;
+  for both it is the drift detector, of upstream against Debian's packaging
+  and of the distributions against the install;
+- manual dispatch. With `xymon_ref` empty it builds the stable line alone;
+  with `main`, a branch or sha of xymon, or `preview-X.Y.Z-N`, the pre-release
+  line alone from that source.
+
+The nightly `previews.yml` (`47 1 * * *`) dispatches it too: for each
+xymon-experimental milestone with no `rel-<milestone>` tag in xymon, its
+newest published preview, unless the archive already holds it. A failed build
+is dispatched again the next day, as the archive records successes alone.
 
 `attribution.yml` is separate: a credit line says nothing about whether the
 packages are good, so it does not stand between a tested build and its signing.
@@ -15,10 +25,11 @@ packages are good, so it does not stand between a tested build and its signing.
 ## The job graph
 
 ```
+plan                                (which lines this run builds)
 lint                                (no container; publish waits on it too)
 
-deb (matrix: bookworm, trixie, noble × amd64, arm64)
- └─ systemd (trixie-amd64) ── publish ── pages   (dispatch with publish=1, from main)
+deb (matrix: stable, pre × bookworm, trixie, noble × amd64, arm64)
+ └─ systemd (trixie-amd64, per line) ── publish ── pages
 ```
 
 `lint` runs `shellcheck -S error` over every shell script this repository
@@ -37,22 +48,42 @@ limit is 6 hours, which is how long a hung mirror could hold a job.
 Each step is a fresh container of the release, so no test can pass on what an
 earlier one installed.
 
+0. **fetch the upstream source**, pre-release line only —
+   `build/prepare-source.sh` on the runner: clone xymon, check out the ref (a
+   preview tag comes from xymon-experimental), export it with `git archive`
+   and name the build: the upstream half of the version from the commit, the
+   packaging half from the last commit here that touched `build/`,
+   `backport/`, `prerelease/`, `source.dsc.sha256` or `.github/`.
 1. **build** — `build/build-deb.sh`: fetch the `.dsc` pinned in
    `source.dsc.sha256` from the Debian archive, verify it and the files it
    lists, apply `backport/all/*.patch` then `backport/<codename>/*.patch`, set
    the version, install the build dependencies and run `dpkg-buildpackage`.
-   Debian's own test suite runs as part of that build.
+   Debian's own test suite runs as part of that build. For a pre-release the
+   tree is the upstream export with Debian's `debian/` put in place of
+   upstream's own, and `prerelease/` is applied before `backport/`.
 2. **test** — `vercmp`, `packages`, `publish`, `install` fresh, `install`
    upgrade ([testing.md](testing.md)).
-3. **upload artifacts** — `pub-<codename>-<arch>`: the two packages, without
+3. **upload artifacts** — `pub-<codename>-<arch>` for the stable line,
+   `pre-<codename>-<arch>` for the pre-release one: the two packages, without
    their `dbgsym`.
 
 ## Publishing
 
-The `publish` job runs only for a dispatch from `main` with `publish=1`. Not on
-a push or the cron: those rebuild a version that may be published already, and
-a rebuild has different bytes under the same name, which `publish.sh` leaves
-out. In order, the job:
+The `publish` job never runs from a pull request, and only from `main`. It
+publishes one line per run:
+
+- **stable**, for a dispatch with `xymon_ref` empty and `publish=1`. Not on a
+  push or the cron: those rebuild a version that may be published already,
+  and a rebuild has different bytes under the same name, which `publish.sh`
+  leaves out;
+- **pre-release**, for every build of xymon's `main` (the cron, a push, a
+  dispatch naming `main`) and for a dispatched `preview-*` tag. The version
+  names the upstream commit and the packaging commit, so a run that changes
+  neither publishes nothing. A push or cron run built the stable line too;
+  those packages are tests and are not downloaded.
+
+A dispatched `preview-*` tag is refused when its xymon-experimental release
+is a draft or missing. In order, the job:
 
 1. checks out `main`'s tip, not the run's sha. A run queued behind a newer one
    would otherwise regenerate the index pages from an older tree and push them
@@ -63,10 +94,13 @@ out. In order, the job:
    `fingerprint` file names. The generated `xymon.sources` embeds the public
    key committed here, so signing with another would publish a repository
    every host refuses;
-4. downloads every `pub-*` artifact and clones the published tree from
+4. downloads the `pub-*` or the `pre-*` artifacts and clones the published
+   tree from
    `xymon-monitoring/xymon-apt-archive`;
-5. runs `build/publish.sh`, which adds the packages to `pool/<codename>/`,
-   never replacing one, then rebuilds and signs each suite's indexes. The job
+5. runs `build/publish.sh`, which files each package by its version, into
+   `pool/<codename>/`, `-snapshot` or `-preview`, never replacing one; prunes
+   the pre-release suites and rebuilds `-preview-next`; then rebuilds and
+   signs each suite's indexes. The job
    then adds the key, one `xymon.sources` per suite and the index pages;
 6. replaces the archive's `main` with one orphan commit, force-pushed, then
    uploads the tree as the Pages artifact.
@@ -74,17 +108,17 @@ out. In order, the job:
 A `concurrency` group serialises overlapping runs, so two publishes cannot race
 the push.
 
-**Every published version stays.** A rebuild (`releasenum` 2) is added beside
-the one it supersedes, and a suite whose target has left the matrix keeps
-being served as it was. Nothing is pruned.
+**Every published stable version stays.** A rebuild (`releasenum` 2) is added
+beside the one it supersedes, and a suite whose target has left the matrix
+keeps being served as it was. The pre-release suites are pruned (README
+*Retention*).
 
-**The pre-release channels are published empty.** For every stable suite,
-`publish.sh` also writes `<codename>-snapshot`, `-preview` and
-`-preview-next`: a signed `Release` over an empty `Packages`. Nothing builds
-into them yet (README *Channels*). They exist so that the `xymon.sources` a
-host fetched today, which names them, keeps working unchanged when they fill:
-a suite with no `Release` file fails `apt update` on this repository, an
-empty one finds nothing. They get no `xymon.sources` of their own.
+**The pre-release suites always exist.** For every stable suite, `publish.sh`
+writes `<codename>-snapshot`, `-preview` and `-preview-next` even when one
+holds no package: a signed `Release` over an empty `Packages`. `xymon.sources`
+names them, and a host that added one must not get a failed `apt update` on
+the day its last preview is pruned: a suite with no `Release` file is an
+error, an empty one finds nothing. They get no `xymon.sources` of their own.
 
 ### The archive
 

@@ -19,6 +19,8 @@ source (uploaded to unstable on 2026-11-07 by its Debian maintainers), rebuilt
 for each release. Nothing is repackaged here, which is the one place this
 repository differs from xymon-rpm by design: Debian already packages Xymon,
 so the work is carrying that package to releases that lack this version.
+That is the stable suite; the pre-release suites put the same packaging on a
+newer upstream (*Channels*).
 
 - `source.dsc.sha256` pins Debian's `.dsc`. `build/build-deb.sh` fetches it
   from the Debian archive, and `dpkg-source` verifies every file it lists.
@@ -68,32 +70,54 @@ codename, component `main`.
 
 ## Channels
 
-xymon-rpm has four channels: releases, snapshots of `main`, and two of
-previews. Here only the first is built. The other three are reserved, so that
-adding them later changes nothing on a host that installed today:
+Four suites per release, as xymon-rpm has four channels. `xymon.sources`
+enables the first; the others are added by hand, per host.
 
-| Suite | Holds | Today |
+| Suite | Built from | Version, e.g. |
 | --- | --- | --- |
-| `<codename>` | the rebuild of Debian's package | published |
-| `<codename>-snapshot` | builds of upstream `main` | empty |
-| `<codename>-preview` | previews of every unreleased milestone | empty |
-| `<codename>-preview-next` | previews of the next release alone | empty |
+| `<codename>` | Debian's package of a release | `4.3.31-1~~xymon13+1` |
+| `<codename>-snapshot` | upstream `main`, nightly | `4.3.32~git202611250108.dc9c799-0~~xymon13+…` |
+| `<codename>-preview` | a xymon-experimental preview: the 2 newest of every unreleased milestone | `4.3.32~preview5-0~~xymon13+…` |
+| `<codename>-preview-next` | the previews of the next release alone — **the usual choice** | the same |
 
-The empty suites are published and signed, and `xymon.sources` names them in
-a comment: a host enables one by adding it to `Suites`. Enabling one today
-finds nothing and breaks nothing. The versions leave room as well: a
-pre-release of the next upstream version is `X.Y.Z~…`, which sorts above
-every package of the current version and below the rebuild of `X.Y.Z`
-(`tests/vercmp.sh`). What building them takes is in
-[docs/roadmap.md](docs/roadmap.md).
+A **snapshot** is a pre-release of the next version, with no release testing.
+A **preview** is a test build of an upcoming release: xymon's `main` plus the
+open pull requests of that milestone and of the unreleased ones before it,
+most not reviewed yet;
+[xymon-experimental](https://github.com/xymon-monitoring/xymon-experimental/releases)
+publishes one once its test lanes pass. Both are for testing, not production.
+
+To follow one, add its suite in `/etc/apt/sources.list.d/xymon.sources`:
+
+```
+Suites: trixie trixie-preview-next
+```
+
+Add **one**, and not a snapshot together with a preview: they are different
+lines of code, and `apt` would install whichever sorts higher. Remove the
+suite to stop following it; the packages already installed stay until the
+release of their version, which outranks them.
+
+**What a pre-release is built with.** Not a Debian package of that version,
+which does not exist yet: Debian's packaging of 4.3.31, from the same pinned
+`.dsc`, on the upstream tree. Where that packaging does not fit the newer
+upstream, [`prerelease/`](prerelease/README.md) carries the difference: today
+two of Debian's patches rebased, two changes to `debian/rules`, and an install list without the upgrade helpers upstream removed. So a
+pre-release is this repository's reading of what Debian's package of the next
+version will be, and upgrades to it when it arrives.
+
+A release reaches the stable suite as Debian's package of it, pinned by hand
+in `source.dsc.sha256`. Nothing here builds a release from an upstream tag.
 
 ## Layout
 
 ```
 source.dsc.sha256   the Debian source package that is rebuilt, pinned
 backport/           the only changes made to it, per release
-build/              build-deb.sh builds a target; publish.sh folds packages into
-                    the published tree and signs it; mksources.sh and mkindex.sh
+prerelease/         what Debian's packaging needs to build a newer upstream
+build/              build-deb.sh builds a target, prepare-source.sh fetches an
+                    upstream tree for it; publish.sh folds packages into the
+                    published tree and signs it; mksources.sh and mkindex.sh
                     generate xymon.sources and the index pages
 docs/               build-pipeline, testing, signing, roadmap
 tests/              see Testing
@@ -122,11 +146,17 @@ with a new Debian version.
 
 ## Retention
 
-Everything published stays: people pin versions and roll back. A rebuild is
-added beside the version it supersedes, and `apt list -a xymon` shows both. A
-suite whose target is retired keeps being served as it was. Nothing is pruned:
-that holds for the stable suites, the only ones with packages. The reserved
-channels will need a retention of their own, as xymon-rpm's have.
+The stable suites keep everything: people pin versions and roll back. A
+rebuild is added beside the version it supersedes, and `apt list -a xymon`
+shows both. A suite whose target is retired keeps being served as it was.
+
+The pre-release suites are pruned, by xymon-rpm's rules. A snapshot suite
+keeps the newest **10 upstream commits**, and of each only its newest
+packaging rebuild. A preview suite keeps the newest **2 previews** of each
+unreleased milestone; a milestone's previews go once its release is in the
+stable suite, and `-preview-next` is rebuilt from what is left on every
+publish. Pruning removes whole builds, server and client together, and the
+publish log names each one.
 
 ## Testing
 
@@ -136,9 +166,9 @@ How the suites are layered and how to run one is in
 
 | | |
 | --- | --- |
-| `vercmp.sh` | the version ordering above, that the built version follows the scheme, and that it leaves room for pre-releases |
+| `vercmp.sh` | the version ordering above, snapshots and previews included, and that the built version follows the scheme |
 | `packages.sh` | the two packages, one version, the right architecture, Debian's maintainer, both units |
-| `publish.sh` | publishes into a temporary tree with a throwaway key: a version never overwritten, a rebuild beside the one it supersedes, a suite with nothing new still served, `apt` accepting the result through the generated `xymon.sources` and refusing it under another key; the three reserved channels present, signed and empty |
+| `publish.sh` | publishes into a temporary tree with a throwaway key: a version never overwritten, a rebuild beside the one it supersedes, a suite with nothing new still served, `apt` accepting the result through the generated `xymon.sources` and refusing it under another key; snapshots and previews each in their suite, both retentions dropping whole builds, `-preview-next` moving on after a release, the channels served even when empty |
 | `install.sh` | fresh, then as an upgrade from the distribution's official xymon: the server starts and analyses its own client into `cpu`, `disk`, `memory` and `procs` |
 | `systemd.sh` | under a real init: the client alone runs its unit, and on a server that unit is skipped so the host does not report twice |
 
@@ -150,26 +180,41 @@ Debian's own test suite runs inside every build as well.
 
 ```
 lint (shellcheck)
-deb (bookworm/trixie/noble × amd64/arm64)   build, then the suites above
+deb (bookworm/trixie/noble × amd64/arm64, × stable/pre-release)   build, then the suites above
  └─ systemd (trixie)
-     └─ publish ── pages                    manual dispatch with publish=1 only
+     └─ publish ── pages
 ```
 
-Push, pull request and a weekly cron build and test without publishing.
-Publishing is a dispatch of **build** from `main` with `publish=1`: the
-packages are added to the published tree, which lives in
-`xymon-monitoring/xymon-apt-archive`, and the tree is deployed to Pages. What
-a maintainer sets up once is in [docs/signing.md](docs/signing.md) *Maintainer
-setup*.
+Push, pull request and the nightly cron build both lines. What publishes:
+
+- **stable**: a dispatch of **build** from `main` with `publish=1`, and
+  nothing else;
+- **snapshot**: every build of xymon's `main` from this repository's `main` —
+  the nightly, a push, a dispatch with `xymon_ref=main`. A build that changes
+  neither the upstream commit nor the packaging brings nothing new;
+- **preview**: a dispatch with `xymon_ref=preview-X.Y.Z-N`, which the nightly
+  **previews** workflow sends for each new published preview.
+
+A dispatch of any other ref, a branch or a sha of xymon, builds artifacts
+only. The published tree lives in `xymon-monitoring/xymon-apt-archive` and is
+deployed to Pages. What a maintainer sets up once is in
+[docs/signing.md](docs/signing.md) *Maintainer setup*.
 
 **New Debian upload** (e.g. `4.3.31-2`): update `source.dsc.sha256`, re-check
-`backport/`, reset `releasenum` to 1.
+`backport/` and `prerelease/`, reset `releasenum` to 1.
 
 ## Build locally
 
 ```sh
 docker run --rm -v "$PWD:/w" debian:trixie /w/build/build-deb.sh /w/out
 docker run --rm -v "$PWD:/w:ro" debian:trixie /w/tests/install.sh /w/out upgrade
+```
+
+A snapshot of `main`, or a preview:
+
+```sh
+./build/prepare-source.sh main upstream-src      # or preview-4.3.32-5
+docker run --rm -v "$PWD:/w" debian:trixie /w/build/build-deb.sh /w/out 1 /w/upstream-src
 ```
 
 ## Contributing
@@ -193,4 +238,5 @@ Two things keep their own terms:
   explicit exemption for linking with OpenSSL, and includes a few files under
   BSD-like terms or in the public domain; its `README` and `COPYING` say which.
 - **Debian's packaging**, which is rebuilt and which the patches in
-  `backport/` modify, keeps the terms in its `debian/copyright`.
+  `backport/` and `prerelease/` modify or rebase, keeps the terms in its
+  `debian/copyright`.
