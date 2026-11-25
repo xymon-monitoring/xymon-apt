@@ -33,7 +33,8 @@ Debian's own test suite also runs in every build, inside `dpkg-buildpackage`.
   never overwritten, that a rebuild lands beside the version it supersedes,
   that a suite with nothing new stays served and signed, and that `apt`
   accepts the result through the generated `xymon.sources` and refuses it
-  under another key.
+  under another key. It also enables the reserved channels the way the file
+  says and checks `apt` accepts them empty.
 - **`install.sh`** is the only suite that checks the thing *monitors*: it
   starts the server and waits until its own client's data is analysed into
   `cpu`, `disk`, `memory` and `procs`. In `upgrade` mode it starts from the

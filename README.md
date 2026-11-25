@@ -64,6 +64,27 @@ Each on `amd64` and `arm64`, built natively. Images are pinned by codename so
 a moving tag cannot move a published suite. The repository has one suite per
 codename, component `main`.
 
+## Channels
+
+xymon-rpm has four channels: releases, snapshots of `main`, and two of
+previews. Here only the first is built. The other three are reserved, so that
+adding them later changes nothing on a host that installed today:
+
+| Suite | Holds | Today |
+| --- | --- | --- |
+| `<codename>` | the rebuild of Debian's package | published |
+| `<codename>-snapshot` | builds of upstream `main` | empty |
+| `<codename>-preview` | previews of every unreleased milestone | empty |
+| `<codename>-preview-next` | previews of the next release alone | empty |
+
+The empty suites are published and signed, and `xymon.sources` names them in
+a comment: a host enables one by adding it to `Suites`. Enabling one today
+finds nothing and breaks nothing. The versions leave room as well: a
+pre-release of the next upstream version is `X.Y.Z~…`, which sorts above
+every package of the current version and below the rebuild of `X.Y.Z`
+(`tests/vercmp.sh`). What building them takes is in
+[docs/roadmap.md](docs/roadmap.md).
+
 ## Layout
 
 ```
@@ -101,8 +122,9 @@ with a new Debian version.
 
 Everything published stays: people pin versions and roll back. A rebuild is
 added beside the version it supersedes, and `apt list -a xymon` shows both. A
-suite whose target is retired keeps being served as it was. There is one line
-of packages here, no snapshots, so nothing is pruned.
+suite whose target is retired keeps being served as it was. Nothing is pruned:
+that holds for the stable suites, the only ones with packages. The reserved
+channels will need a retention of their own, as xymon-rpm's have.
 
 ## Testing
 
@@ -112,9 +134,9 @@ How the suites are layered and how to run one is in
 
 | | |
 | --- | --- |
-| `vercmp.sh` | the version ordering above, and that the built version follows the scheme |
+| `vercmp.sh` | the version ordering above, that the built version follows the scheme, and that it leaves room for pre-releases |
 | `packages.sh` | the two packages, one version, the right architecture, Debian's maintainer, both units |
-| `publish.sh` | publishes into a temporary tree with a throwaway key: a version never overwritten, a rebuild beside the one it supersedes, a suite with nothing new still served, `apt` accepting the result through the generated `xymon.sources` and refusing it under another key |
+| `publish.sh` | publishes into a temporary tree with a throwaway key: a version never overwritten, a rebuild beside the one it supersedes, a suite with nothing new still served, `apt` accepting the result through the generated `xymon.sources` and refusing it under another key; the three reserved channels present, signed and empty |
 | `install.sh` | fresh, then as an upgrade from the distribution's official xymon: the server starts and analyses its own client into `cpu`, `disk`, `memory` and `procs` |
 | `systemd.sh` | under a real init: the client alone runs its unit, and on a server that unit is skipped so the host does not report twice |
 

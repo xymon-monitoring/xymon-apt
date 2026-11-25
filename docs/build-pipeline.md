@@ -76,8 +76,15 @@ the push.
 
 **Every published version stays.** A rebuild (`releasenum` 2) is added beside
 the one it supersedes, and a suite whose target has left the matrix keeps
-being served as it was. Nothing is pruned: there is one line of packages here,
-no snapshots.
+being served as it was. Nothing is pruned.
+
+**The pre-release channels are published empty.** For every stable suite,
+`publish.sh` also writes `<codename>-snapshot`, `-preview` and
+`-preview-next`: a signed `Release` over an empty `Packages`. Nothing builds
+into them yet (README *Channels*). They exist so that the `xymon.sources` a
+host fetched today, which names them, keeps working unchanged when they fill:
+a suite with no `Release` file fails `apt update` on this repository, an
+empty one finds nothing. They get no `xymon.sources` of their own.
 
 ### The archive
 
