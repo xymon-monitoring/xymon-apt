@@ -1,7 +1,7 @@
 # backport/
 
 Local changes on top of Debian's source package (`source.dsc.sha256`),
-applied by `build-deb.sh` with `patch -p1` in this order:
+applied by `build/build-deb.sh` with `patch -p1` in this order:
 
 | Path | Applies to | Use |
 | --- | --- | --- |
