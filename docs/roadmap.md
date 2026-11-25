@@ -10,12 +10,17 @@ secrets, the seeded archive repository, and Pages.
 
 ## Decisions
 
-- **Retire trixie.** Debian ships `4.3.31-1~bpo13+1` in trixie-backports, so
-  the trixie target rebuilds what a trixie host can install officially. The
-  README's own rule is to retire a target once its official backport exists.
-  Retiring means dropping it from the matrix and saying where to go instead;
-  a suite already published stays served. Decide before the first publish:
-  a suite never published has nobody to move.
+- **Trixie stays, for now.** *Decided 2026-11-25.* Debian ships
+  `4.3.31-1~bpo13+1` in trixie-backports, and the trixie package here is that
+  package rebuilt: compared file by file, the two differ in the version, the
+  changelog and a build date. It stays in the matrix as this project's own
+  backport all the same. One reason that does not depend on 4.3.31: the
+  `trixie-snapshot` and `trixie-preview` suites have no counterpart in
+  Debian, and a host following one needs the stable suite beside it. A
+  trixie host that wants Debian's own package can take the official
+  backport instead, with `apt install -t trixie-backports xymon`: it sorts
+  above this one, so that is an upgrade. Revisit when Debian's backport has
+  a version this repository does not build.
 - **bookworm and noble through official channels.** Ask the Debian
   maintainers (Roland Rosenfeld, Axel Beckert) about
   `bookworm-backports-sloppy`, offering the delta in `backport/bookworm/` as a

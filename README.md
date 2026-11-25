@@ -136,8 +136,10 @@ xymon-archive-keyring.asc, fingerprint   the public signing key
 | `4.3.31-1~~xymon13+9` | < | `4.3.31-1~bpo13+1` | official [backport](https://backports.debian.org/) wins |
 | `4.3.31-1~~xymon13+9` | < | `4.3.31-1`, `4.3.31-1+deb13u1` | official Debian wins |
 
-Once Debian ships 4.3.31 for a release (backports or archive), `apt` moves to it
-with no downgrade: same packaging, same files. `tests/vercmp.sh` asserts the
+Once Debian ships 4.3.31 for a release, moving to it is an upgrade, never a
+downgrade: same packaging, same files. From the release's own archive `apt`
+does it by itself. From its backports it takes `apt install -t
+<codename>-backports xymon`: `apt` installs nothing from backports unasked. `tests/vercmp.sh` asserts the
 whole table on every build.
 
 A published version is immutable. A change in `backport/` ships by dispatching
