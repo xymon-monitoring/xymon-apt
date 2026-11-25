@@ -9,7 +9,7 @@ cheapest suite that can see it.
 
 | Suite | Reads / needs | Runs in |
 | --- | --- | --- |
-| `vercmp.sh` | version strings, and the built version | every `deb` build |
+| `vercmp.sh` | version strings, and the built version | every `deb` build, both lines |
 | `packages.sh` | the packages, uninstalled | every `deb` build |
 | `publish.sh` | a throwaway tree and key; `apt` against it | every `deb` build |
 | `install.sh fresh` | installs into the container, starts a server | every `deb` build |
@@ -17,7 +17,10 @@ cheapest suite that can see it.
 | `systemd.sh` | a real PID 1 | `systemd` job, trixie-amd64 |
 | `attribution.sh` | one text file | `attribution.yml`: pull requests, pushes to `main` |
 
-Debian's own test suite also runs in every build, inside `dpkg-buildpackage`.
+Every suite runs on both lines, the stable rebuild and the pre-release build
+of upstream. Debian's packaging also runs upstream's own test suite in every
+build, inside `dpkg-buildpackage`; on the pre-release line that is `main`'s,
+several times the size of the release's.
 
 ## What each is for
 
@@ -33,8 +36,12 @@ Debian's own test suite also runs in every build, inside `dpkg-buildpackage`.
   never overwritten, that a rebuild lands beside the version it supersedes,
   that a suite with nothing new stays served and signed, and that `apt`
   accepts the result through the generated `xymon.sources` and refuses it
-  under another key. It also enables the reserved channels the way the file
-  says and checks `apt` accepts them empty.
+  under another key. It gives the build's own packages synthetic versions, so
+  it exercises every kind whatever line produced them: snapshots and previews
+  filed in their suites and never in the stable one, both retentions dropping
+  whole builds, `-preview-next` holding the lowest unreleased milestone and
+  moving on after a release, the channels served when empty, and what `apt`
+  picks with each suite added.
 - **`install.sh`** is the only suite that checks the thing *monitors*: it
   starts the server and waits until its own client's data is analysed into
   `cpu`, `disk`, `memory` and `procs`. In `upgrade` mode it starts from the
@@ -49,6 +56,11 @@ Debian's own test suite also runs in every build, inside `dpkg-buildpackage`.
 
 - The workflow's own publish steps: the archive clone, the push, the Pages
   upload. `tests/publish.sh` covers the two scripts they call.
+- `previews.yml`, which only dispatches, and `build/prepare-source.sh`'s
+  preview path outside a dispatched preview build: pushes and the cron build
+  `main`.
+- A pre-release upgraded to the release of its version, installed: the
+  versions are asserted to order, and nothing installs them in sequence.
 - An upgrade from one published rebuild to the next, and a release upgrade
   (bookworm to trixie) with these packages installed. `vercmp.sh` asserts the
   versions order; nothing installs them in sequence.

@@ -1,0 +1,55 @@
+Description: Restrict apache access to localhost by default
+ Debian's 13_apache_access_local.patch, rebased by xymon-apt onto upstream
+ after 4.3.31, which reordered both files.
+Author: Roland Rosenfeld <roland@debian.org>, Christoph Berg <myon@debian.org>
+Forwarded: not-needed
+Last-Update: 2026-11-25
+
+--- a/xymond/etcfiles/xymon-apache-open.DIST
++++ b/xymond/etcfiles/xymon-apache-open.DIST
+@@ -8,7 +8,7 @@
+ <Directory "@CGIDIR@">
+     AllowOverride None
+     Options ExecCGI Includes
+-    Require all granted
++    Require local
+ </Directory>
+ 
+ # The web pages come after the CGI directories: Apache uses the first alias
+@@ -19,7 +19,7 @@
+ @XYMONWEBALIAS@
+ <Directory "@INSTALLWWWDIR@">
+     Options Indexes FollowSymLinks Includes MultiViews
+-    Require all granted
++    Require local
+ </Directory>
+ 
+ # Rewrite-rules for migrating from the URL's used in Hobbit
+--- a/xymond/etcfiles/xymon-apache-secure.DIST
++++ b/xymond/etcfiles/xymon-apache-secure.DIST
+@@ -8,7 +8,7 @@
+ <Directory "@CGIDIR@">
+     AllowOverride None
+     Options ExecCGI Includes
+-    Require all granted
++    Require local
+ </Directory>
+ 
+ ScriptAlias @SECUREXYMONCGIURL@/ "@SECURECGIDIR@/"
+@@ -54,6 +54,7 @@
+       # "group admins" restricts access to users who have logged in, AND
+       # are members of the "admins" group in xymongroups.
+       # Require group admins
++      Require local
+     </RequireAll>
+ </Directory>
+ 
+@@ -65,7 +66,7 @@
+ @XYMONWEBALIAS@
+ <Directory "@INSTALLWWWDIR@">
+     Options Indexes FollowSymLinks Includes MultiViews
+-    Require all granted
++    Require local
+ </Directory>
+ 
+ # Rewrite-rules for migrating from the URL's used in Hobbit

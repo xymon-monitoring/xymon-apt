@@ -36,7 +36,7 @@ cat <<EOF
 # the suite below is $codename and nothing moves it.
 #
 # Pre-release channels are suites of their own, to add to Suites below
-# deliberately, per host. They are empty until such builds are published:
+# deliberately, per host. For testing, not production:
 #
 #   $codename-snapshot      builds of upstream main, with no release testing
 #   $codename-preview       previews of every unreleased milestone

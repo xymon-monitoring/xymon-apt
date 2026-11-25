@@ -64,6 +64,8 @@ not say is which document answers which question:
 
 - **what is changed on top of Debian's package, and why** —
   [backport/README.md](backport/README.md), and the header of each patch.
+- **what a pre-release build adds to that, and what to do when upstream
+  breaks it** — [prerelease/README.md](prerelease/README.md).
 - **which suite covers what, and how to run one** —
   [docs/testing.md](docs/testing.md). A break should fail at the cheapest
   suite that can see it.
@@ -88,12 +90,13 @@ copy of one is a second place that goes stale.
   is that it stays Debian's: the same files, the same maintainer scripts, so
   that the official package replaces this one with no migration. A change to
   what the package installs, requires or starts is proposed to the Debian
-  maintainers, not made here. What may live in `backport/` is in
-  `CONTRIBUTING.md` *Which repository*.
+  maintainers, not made here. What may live in `backport/` and
+  `prerelease/` is in `CONTRIBUTING.md` *Which repository*.
 - **Do not fix Debian packaging in the `xymon` repository.** Its `debian/`
   directory dates from 2019 and is not what these packages come from.
 - **Do not write the version.** It is computed in `build/build-deb.sh` from
-  Debian's version, the release's `VERSION_ID` and `releasenum`.
+  Debian's version, the release's `VERSION_ID` and `releasenum`, and for a
+  pre-release from the two git trees, in `build/prepare-source.sh`.
   `CONTRIBUTING.md` *Versioning* has the prohibitions and what each costs.
 - **Do not `git add -A` or `git add .`.** A tree that has been built holds
   things nobody changed: packages in `out/`, a log, a scratch file.

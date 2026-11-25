@@ -115,11 +115,22 @@ version stays available; <code>apt list -a xymon</code> shows them.</p>
 <h2 id="channels">Channels</h2>
 <p>Each release also has three pre-release suites, named as
 <a href="https://github.com/xymon-monitoring/xymon-rpm">xymon-rpm</a> names
-its channels: <code>&lt;release&gt;-snapshot</code>,
-<code>&lt;release&gt;-preview</code> and
-<code>&lt;release&gt;-preview-next</code>. <strong>They are empty
-today</strong>: nothing is built into them yet. <code>xymon.sources</code>
-says how to enable one.</p>
+its channels. They are not enabled by <code>xymon.sources</code>, which
+says how to add one.</p>
+<table>
+  <tr><td><code>&lt;release&gt;-snapshot</code></td>
+      <td>builds of upstream <code>main</code>, nightly: pre-releases of the
+      next version, with no release testing</td></tr>
+  <tr><td><code>&lt;release&gt;-preview</code></td>
+      <td>previews of each unreleased milestone, from
+      <a href="https://github.com/xymon-monitoring/xymon-experimental/releases">xymon-experimental</a>:
+      the 2 newest of every milestone</td></tr>
+  <tr><td><code>&lt;release&gt;-preview-next</code></td>
+      <td>the previews of the next release alone &mdash; the usual choice
+      for testing a preview</td></tr>
+</table>
+<p>Add <em>one</em> of them, and not a snapshot together with a preview:
+they are different lines of code. For testing, not production.</p>
 
 <h2>Signing</h2>
 <p>The repository metadata is signed. Verify the

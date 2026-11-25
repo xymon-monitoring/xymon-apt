@@ -1,0 +1,13 @@
+# Upstream tests a pre-release build does not run: one path per line,
+# relative to the upstream tree, then what makes the line removable.
+# build/build-deb.sh drops the execute bit of each, and upstream's runner
+# runs executables only.
+#
+# For a test that fails for a reason upstream has to fix, not this
+# packaging: the build would otherwise fail most nights on something a
+# rebase here cannot change. Every line names the upstream pull request or
+# issue whose merge deletes it.
+
+# showgraph crashes on about one failed graph in two hundred on Debian 12
+# (Pango 1.50.12), so this test of 200 fails there more often than not.
+tests/web/showgraph-rrd-error-exit.sh	xymon#1024

@@ -7,3 +7,6 @@
 
 # a local checkout of the published tree (tests, a dry run of the publish)
 /published/
+
+# the upstream tree build/prepare-source.sh fetches for a pre-release build
+/upstream-src/

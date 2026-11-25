@@ -2,21 +2,29 @@ name: build
 
 # Mirrors xymon-monitoring/xymon-rpm's build.yml: lint, build per target,
 # tests gate publishing, publish on request, deploy Pages in its own job.
-# What is built: Debian's xymon source package pinned in source.dsc.sha256,
-# plus backport/ patches -- an unofficial backport. docs/build-pipeline.md
-# has the job graph and the reasons.
+# Two lines are built. "stable": Debian's xymon source package pinned in
+# source.dsc.sha256, plus backport/ patches -- an unofficial backport.
+# "pre": the same packaging on an upstream tree, a snapshot of xymon's main
+# or a xymon-experimental preview. docs/build-pipeline.md has the job graph
+# and the reasons.
 on:
   push:
     paths-ignore: ['**.md', 'docs/**']
   pull_request:
     paths-ignore: ['**.md', 'docs/**']
-  # Weekly: catches a distro update that breaks the build or the install.
-  # Not nightly as in xymon-rpm: the source is a pinned Debian upload, not a
-  # moving branch, so what can drift is the distributions alone.
+  # Nightly, both lines. For the snapshot it is the build: main has moved or
+  # it has not, and publish.sh leaves out a version it already holds. For
+  # both it is the drift detector: an upstream change Debian's packaging does
+  # not fit, or a distro update that breaks the install, goes red the next
+  # day.
   schedule:
-    - cron: '17 0 * * 1'
+    - cron: '17 0 * * *'
   workflow_dispatch:
     inputs:
+      xymon_ref:
+        description: 'Empty: the stable rebuild of Debian''s package. Or a pre-release source: main, a branch or sha of xymon, or preview-X.Y.Z-N'
+        required: false
+        default: ''
       # A published version is immutable: after a change in backport/ (e.g. a
       # CVE fix) re-dispatch with this bumped, giving ~~xymonNN+2.
       releasenum:
@@ -24,7 +32,13 @@ on:
         required: false
         default: '1'
       publish:
-        description: 'Set to 1 to publish the result'
+        description: 'Stable rebuild only: set to 1 to publish it'
+        required: false
+        default: ''
+      # One-off override of the retention in build/publish.sh, for trimming
+      # the published tree by hand.
+      snapshot_keep:
+        description: 'Upstream builds to keep per snapshot suite when publishing'
         required: false
         default: ''
 
@@ -33,8 +47,31 @@ permissions:
 
 env:
   RELEASENUM: ${{ github.event.inputs.releasenum || '1' }}
+  # What the pre-release line builds. A dispatch that names nothing builds
+  # the stable line alone, so this default is read only by push, pull
+  # request and cron runs.
+  XYMON_REF: ${{ github.event.inputs.xymon_ref || 'main' }}
 
 jobs:
+  # Which lines this run builds. A dispatch builds the one it asks for;
+  # everything else builds both, so a pull request is tested against the
+  # snapshot source too rather than found out by the next nightly.
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      lines: ${{ steps.lines.outputs.lines }}
+    steps:
+      - id: lines
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_INPUT: ${{ github.event.inputs.xymon_ref }}
+        run: |
+          if [ "$EVENT" != workflow_dispatch ]; then lines='["stable","pre"]'
+          elif [ -z "$REF_INPUT" ]; then lines='["stable"]'
+          else lines='["pre"]'; fi
+          echo "lines=$lines" >> "$GITHUB_OUTPUT"
+
   # publish waits on it for the sake of build/publish.sh, not the packages:
   # sh executes a file as it reads it, so a syntax error half way down signs
   # and copies part of a tree before it stops.
@@ -65,14 +102,18 @@ jobs:
           xargs shellcheck -S error < /tmp/shell-files
 
   deb:
-    name: ${{ matrix.codename }}-${{ matrix.arch }}
+    name: ${{ matrix.codename }}-${{ matrix.arch }}${{ matrix.line == 'pre' && '-pre' || '' }}
+    needs: plan
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
-    timeout-minutes: 30
+    # 45, not the 30 of the other jobs: a pre-release build runs upstream
+    # main's test suite, several times the size of the release's.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       # Pinned codenames, never "stable"/"latest": a moving tag would move
       # the published suite underneath users with no commit to point at.
       matrix:
+        line: ${{ fromJSON(needs.plan.outputs.lines) }}
         image: [debian:bookworm, debian:trixie, ubuntu:noble]
         arch: [amd64, arm64]
         include:
@@ -81,11 +122,22 @@ jobs:
           - {image: ubuntu:noble, codename: noble}
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Full history: the packaging half of a pre-release version names
+          # the last commit that changed what goes into a package, and
+          # finding that needs more than the tip.
+          fetch-depth: 0
+
+      # On the runner, not in the container: it needs git and this
+      # repository's history, and the build containers have neither.
+      - name: Fetch the upstream source
+        if: matrix.line == 'pre'
+        run: ./build/prepare-source.sh "$XYMON_REF" upstream-src
 
       - name: Build
         run: |
           docker run --rm -v "$PWD:/w" "${{ matrix.image }}" \
-            /w/build/build-deb.sh /w/out "$RELEASENUM"
+            /w/build/build-deb.sh /w/out "$RELEASENUM" ${{ matrix.line == 'pre' && '/w/upstream-src' || '' }}
 
       # Cheapest first: a break should fail at the cheapest suite that can
       # see it (docs/testing.md). Each in a fresh container, so none can
@@ -105,9 +157,11 @@ jobs:
       - name: Install test (upgrade from the distro's official xymon)
         run: docker run --rm -v "$PWD:/w:ro" "${{ matrix.image }}" /w/tests/install.sh /w/out upgrade
 
+      # pub-* is the stable line and pre-* the pre-release one: the publish
+      # job takes one or the other, never both.
       - uses: actions/upload-artifact@v4
         with:
-          name: pub-${{ matrix.codename }}-${{ matrix.arch }}
+          name: ${{ matrix.line == 'pre' && 'pre' || 'pub' }}-${{ matrix.codename }}-${{ matrix.arch }}
           # dbgsym packages left out: ~10x the size, rarely wanted
           path: |
             out/xymon_*.deb
@@ -117,14 +171,19 @@ jobs:
   # The container jobs above have no PID 1, so the maintainer scripts' systemd
   # calls no-op there. One target is enough: the units are the same everywhere.
   systemd:
+    name: systemd${{ matrix.line == 'pre' && '-pre' || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: deb
+    needs: [plan, deb]
+    strategy:
+      fail-fast: false
+      matrix:
+        line: ${{ fromJSON(needs.plan.outputs.lines) }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v4
         with:
-          name: pub-trixie-amd64
+          name: ${{ matrix.line == 'pre' && 'pre' || 'pub' }}-trixie-amd64
           path: out
       - name: Run the systemd test
         run: |
@@ -153,14 +212,26 @@ jobs:
 
   publish:
     needs: [lint, deb, systemd]
-    # Only a deliberate, dispatched build from main: a pull request never
-    # reaches the key, and a push or cron rebuild of a published version
-    # would produce different bytes under the same name, which publish.sh
-    # leaves out -- a run that looks like a publish and ships nothing.
+    # Never from a pull request, and only from main: a fork must not reach
+    # the key or the published tree. Then one line or the other.
+    #
+    # Stable: only a dispatch that asks for it with publish=1. A push or
+    # cron rebuild of a published version would produce different bytes
+    # under the same name, which publish.sh leaves out -- a run that looks
+    # like a publish and ships nothing.
+    #
+    # Pre-release: every build of xymon's main (the nightly, a push here, a
+    # dispatch naming main) and a dispatched preview-* tag. Its version
+    # names the upstream commit and the packaging commit, so a build that
+    # changes neither brings nothing new and publishes nothing. A dispatch
+    # of any other ref -- a branch, a sha -- leaves artifacts only.
     if: >-
-      github.event_name == 'workflow_dispatch'
-      && github.event.inputs.publish == '1'
+      github.event_name != 'pull_request'
       && github.ref == 'refs/heads/main'
+      && (github.event_name != 'workflow_dispatch'
+          || (github.event.inputs.xymon_ref == '' && github.event.inputs.publish == '1')
+          || github.event.inputs.xymon_ref == 'main'
+          || startsWith(github.event.inputs.xymon_ref, 'preview-'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Two overlapping runs would both clone the archive and both force-push
@@ -172,6 +243,23 @@ jobs:
     outputs:
       ok: ${{ steps.key.outputs.ok }}
     steps:
+      # xymon-experimental pushes a preview's tag before it publishes the
+      # release, which stays a draft until the preview's lanes pass.
+      # previews.yml only dispatches published ones, but a manual dispatch
+      # can name any tag. The tag endpoint returns published releases only.
+      - name: Refuse a preview that is not published
+        if: startsWith(github.event.inputs.xymon_ref, 'preview-')
+        env:
+          REF_INPUT: ${{ github.event.inputs.xymon_ref }}
+        run: |
+          set -euo pipefail
+          if ! draft=$(curl -fsS "https://api.github.com/repos/xymon-monitoring/xymon-experimental/releases/tags/${REF_INPUT}" \
+                       | sed -n 's/^ *"draft": *\(true\|false\).*/\1/p'); then
+            echo "::error::${REF_INPUT} is not a published xymon-experimental release (a draft, or no such tag)"
+            exit 1
+          fi
+          [ "$draft" = false ] || { echo "::error::${REF_INPUT} is a draft"; exit 1; }
+
       # main's tip, not this run's sha: the packages belong to the run that
       # built them, but the generators and the key describe the repository
       # as it stands now. A run queued behind a newer one would otherwise
@@ -212,10 +300,12 @@ jobs:
             { echo "::error::the secret key is $fpr, the fingerprint file names $want"; exit 1; }
           echo "XYMON_GPG_KEY=$fpr" >> "$GITHUB_ENV"
 
+      # One line per publish. A push or a cron run builds both, and its
+      # stable packages are tests, not a release.
       - uses: actions/download-artifact@v4
         if: steps.key.outputs.ok == 'true'
         with:
-          pattern: pub-*
+          pattern: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.xymon_ref == '' && 'pub-*' || 'pre-*' }}
           path: artifacts
 
       # The published tree lives in xymon-apt-archive, as xymon-rpm's does in
@@ -261,6 +351,9 @@ jobs:
 
       - name: Sign and publish
         if: steps.key.outputs.ok == 'true'
+        env:
+          # Empty means "leave it to publish.sh".
+          XYMON_SNAPSHOT_KEEP: ${{ github.event.inputs.snapshot_keep }}
         run: |
           set -eu
           command -v apt-ftparchive >/dev/null || sudo apt-get install -y apt-utils

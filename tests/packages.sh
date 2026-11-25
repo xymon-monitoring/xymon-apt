@@ -57,6 +57,18 @@ check "the server ships xymon.service" \
 check "the client ships xymon-client.service" \
 	'dpkg-deb -c "$client" | grep -q "systemd/system/xymon-client\.service$"'
 
+# Debian's patches are in what was built. A build can skip them all and
+# still produce packages that install: it happened to the first pre-release
+# builds, whose tree carried the marker of another tree's applied patches.
+# One line from each of the two patches that shape a running host.
+conf() { dpkg-deb --fsys-tarfile "$1" | tar -xO "./$2" 2>/dev/null; }
+check "the server's xymonserver.cfg has Debian's includes (12_hobbitvars.patch)" \
+	'conf "$server" etc/xymon/xymonserver.cfg | grep -q "^include /var/run/xymon/bbdisp-runtime.cfg"'
+check "the client's xymonclient.cfg has Debian's paths (12_hobbitvars.patch)" \
+	'conf "$client" etc/xymon/xymonclient.cfg | grep -q "^include /etc/default/xymon-client"'
+check "the Apache configuration is restricted to local access (13_apache_access_local.patch)" \
+	'dpkg-deb --fsys-tarfile "$server" | tar -xO 2>/dev/null | grep -aq "Require local"'
+
 # Nothing under /usr/local or the build directory: either means the
 # upstream build escaped Debian's install rules.
 check "the server installs nothing under /usr/local" \

@@ -1,7 +1,8 @@
 # backport/
 
 Local changes on top of Debian's source package (`source.dsc.sha256`),
-applied by `build/build-deb.sh` with `patch -p1` in this order:
+applied by `build/build-deb.sh` with `patch -p1` in this order. A pre-release
+build applies [`prerelease/`](../prerelease/README.md) first, then these.
 
 | Path | Applies to | Use |
 | --- | --- | --- |
