@@ -86,8 +86,10 @@ for Debian and Ubuntu: an unofficial rebuild of
 for releases that do not carry that version. Packaging lives in
 <a href="https://github.com/xymon-monitoring/xymon-apt">xymon-apt</a>.</p>
 
-<p><strong>&#9888;&#65039; Experimental.</strong> Layout and repository
-structure may still change.</p>
+<p><strong>&#9888;&#65039; Highly experimental.</strong> This packaging is
+new and has seen no production use; versioning, suites and repository
+structure may still change without notice. Do not point production
+machines at it yet.</p>
 
 <h2>Install</h2>
 <pre>curl -fsSLo /etc/apt/sources.list.d/xymon.sources \\
