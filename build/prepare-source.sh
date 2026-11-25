@@ -5,13 +5,14 @@
 #   prepare-source.sh <xymon-ref> <source-dir>
 #
 # <xymon-ref> is a branch or a sha of xymon-monitoring/xymon; a pull request
-# of it, as pr/NNN; or a preview-X.Y.Z-N tag, which xymon-experimental makes:
+# of it, as pr/NNN; a preview-X.Y.Z-N tag, which xymon-experimental makes:
 # main plus the pull requests of X.Y.Z and of the unreleased milestones
-# before it.
+# before it; or a release tag of xymon, rel-X.Y.Z, for a release Debian has
+# not packaged yet.
 #
 # Leaves in <source-dir>, for build/build-deb.sh:
 #   tree/              git archive of the ref: nothing modified after the clone
-#   upstream-version   X.Y.Z~git<datetime>.<sha>, or X.Y.Z~preview<N>
+#   upstream-version   X.Y.Z~git<datetime>.<sha>, X.Y.Z~preview<N>, or X.Y.Z
 #   packaging-id       <datetime>p<sha> of the packaging
 #
 # Run on the host, from a full clone of this repository: it needs git, and
@@ -30,10 +31,16 @@ git clone -q --filter=blob:none https://github.com/xymon-monitoring/xymon.git "$
 
 case "$ref" in
 rel-*)
-	# A release reaches the stable suites as Debian's package of it, not
-	# from here: see README, What it ships.
-	echo "prepare-source.sh: $ref is a release; pre-releases only" >&2
-	exit 1 ;;
+	# A release Debian has not packaged yet, built as the pre-releases
+	# are. Only an exact tag is one: a branch named rel-... is not, and
+	# would otherwise reach the stable suites under a release's version.
+	echo "$ref" | grep -Eq '^rel-[0-9]+\.[0-9]+\.[0-9]+$' ||
+		{ echo "prepare-source.sh: $ref is not rel-X.Y.Z" >&2; exit 1; }
+	git -C "$dir/git" rev-parse -q --verify "refs/tags/$ref" >/dev/null ||
+		{ echo "prepare-source.sh: xymon has no tag $ref" >&2; exit 1; }
+	git -C "$dir/git" checkout -q "refs/tags/$ref"
+	upstream=${ref#rel-}
+	;;
 preview-*)
 	echo "$ref" | grep -Eq '^preview-[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$' ||
 		{ echo "prepare-source.sh: $ref is not preview-X.Y.Z-N" >&2; exit 1; }

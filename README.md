@@ -19,8 +19,9 @@ source (uploaded to unstable on 2026-11-07 by its Debian maintainers), rebuilt
 for each release. Nothing is repackaged here, which is the one place this
 repository differs from xymon-rpm by design: Debian already packages Xymon,
 so the work is carrying that package to releases that lack this version.
-That is the stable suite; the pre-release suites put the same packaging on a
-newer upstream (*Channels*).
+That is the stable suite for a version Debian has packaged. For a release
+Debian has not packaged yet, and for the pre-release suites, the same
+packaging is put on the upstream tree (*Channels*).
 
 - `source.dsc.sha256` pins Debian's `.dsc`. `build/build-deb.sh` fetches it
   from the Debian archive, and `dpkg-source` verifies every file it lists.
@@ -106,8 +107,14 @@ two of Debian's patches rebased, a few changes to `debian/rules`, and install an
 pre-release is this repository's reading of what Debian's package of the next
 version will be, and upgrades to it when it arrives.
 
-A release reaches the stable suite as Debian's package of it, pinned by hand
-in `source.dsc.sha256`. Nothing here builds a release from an upstream tag.
+**A release Debian has not packaged yet** is built the same way, from
+xymon's `rel-X.Y.Z` tag, and goes to the stable suite as
+`X.Y.Z-0~~xymon<VERSION_ID>+…`, the night the tag is seen. It sorts above
+every snapshot and preview of X.Y.Z, whose hosts move onto it, and below
+Debian's `X.Y.Z-1`. When Debian uploads that and `source.dsc.sha256` is set
+to it, the stable suite gets Debian's package rebuilt, as for 4.3.31, and
+`apt` moves on to it. Between the two, the stable suite holds this
+repository's reading of the packaging, not a package Debian made.
 
 ## Layout
 
@@ -135,6 +142,8 @@ xymon-archive-keyring.asc, fingerprint   the public signing key
 | `4.3.31-1~~xymon12+9` | < | `4.3.31-1~~xymon13+1` | dist-upgrade 12 → 13 |
 | `4.3.31-1~~xymon13+9` | < | `4.3.31-1~bpo13+1` | official [backport](https://backports.debian.org/) wins |
 | `4.3.31-1~~xymon13+9` | < | `4.3.31-1`, `4.3.31-1+deb13u1` | official Debian wins |
+| `4.3.32~git…`, `4.3.32~preview5…` | < | `4.3.32-0~~xymon13+…` | a release built from upstream's tag ends its pre-releases |
+| `4.3.32-0~~xymon13+…` | < | `4.3.32-1~~xymon13+1`, `4.3.32-1` | Debian's package of it wins, rebuilt here or official |
 
 Once Debian ships 4.3.31 for a release (backports or archive), `apt` moves to it
 with no downgrade: same packaging, same files. `tests/vercmp.sh` asserts the
@@ -193,7 +202,10 @@ Push, pull request and the nightly cron build both lines. What publishes:
   the nightly, a push, a dispatch with `xymon_ref=main`. A build that changes
   neither the upstream commit nor the packaging brings nothing new;
 - **preview**: a dispatch with `xymon_ref=preview-X.Y.Z-N`, which the nightly
-  **previews** workflow sends for each new published preview.
+  **previews** workflow sends for each new published preview;
+- **a release from upstream's tag**: a dispatch with `xymon_ref=rel-X.Y.Z`,
+  which the same workflow sends once xymon has the tag, until the stable
+  suites hold that version.
 
 A dispatch of any other ref, a branch, a sha or a pull request of xymon
 (`pr/NNN`), builds artifacts

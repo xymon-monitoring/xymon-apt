@@ -16,7 +16,9 @@
 # published there stays: people pin a version and roll back, and a suite whose
 # target left the build matrix keeps being served as it was.
 #
-# A pre-release goes to a suite of its own beside it, by its version:
+# A release built here from an upstream tag, X.Y.Z-0~~xymon..., goes to the
+# stable suite too: it is a release. A pre-release goes to a suite of its
+# own beside it, by its version:
 #   X.Y.Z~git...      <codename>-snapshot      a build of upstream main
 #   X.Y.Z~preview<N>  <codename>-preview       a xymon-experimental preview
 # and <codename>-preview-next is rebuilt on every run from the previews of

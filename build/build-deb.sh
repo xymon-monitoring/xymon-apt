@@ -9,9 +9,10 @@
 #   backport/all/*.patch        every target (e.g. a CVE fix not yet in Debian)
 #   backport/<codename>/*.patch this release only (toolchain adaptations)
 #
-# With a source-dir (made by build/prepare-source.sh) the build is a
-# pre-release instead, a snapshot of upstream main or a preview: Debian's
-# debian/ directory, from the same pinned .dsc, on top of that upstream tree.
+# With a source-dir (made by build/prepare-source.sh) the build is of an
+# upstream tree instead -- a snapshot of main, a preview, or a release Debian
+# has not packaged yet: Debian's debian/ directory, from the same pinned
+# .dsc, on top of that tree.
 # Debian's packaging was written for the release it packages, so what it
 # needs to fit a later upstream is in prerelease/, applied before backport/:
 #   prerelease/debian/          files that replace Debian's, e.g. a rebased patch
@@ -19,7 +20,9 @@
 # Its version is <upstream>-0~~xymon<VERSION_ID>+<packaging id>, both halves
 # from prepare-source.sh, e.g.
 # 4.3.32~git202611250108.dc9c799-0~~xymon13+202611251000pab12cd3. The "~"
-# puts it below 4.3.32 itself, whoever builds that.
+# puts a pre-release below 4.3.32 itself, whoever builds that. A release
+# built here is 4.3.32-0~~xymon13+...: above every pre-release of it, and
+# below Debian's 4.3.32-1, which replaces it when it comes.
 #
 # Version: <debian-version>~~xymon<VERSION_ID>+<releasenum>, e.g.
 # 4.3.31-1~~xymon13+1. "~~" sorts below the official backport
@@ -94,7 +97,7 @@ if [ -n "$SRC" ]; then
         fi
     done
     VER="$UPSTREAM-0~~xymon${VERSION_ID:?}+$PKGID"
-    MSG="Pre-release build of upstream $UPSTREAM with the packaging of Debian's $DEBVER, for $CODENAME, by xymon-apt."
+    MSG="Build of upstream $UPSTREAM with the packaging of Debian's $DEBVER, for $CODENAME, by xymon-apt."
 else
     VER="$DEBVER~~xymon${VERSION_ID:?}+$REL"
     MSG="Rebuild of Debian's $DEBVER for $CODENAME by xymon-apt."

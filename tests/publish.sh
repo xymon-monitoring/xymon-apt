@@ -200,16 +200,27 @@ check "$c-preview-next holds the next release's previews" \
 check "and not a later milestone's" '! listed "$c-preview-next" "$(pre 4.3.33~preview1)"'
 check "a host that added $c-preview-next gets the next release's newest preview" \
 	'update "$c $c-preview-next" && [ "$(candidate)" = "$(pre 4.3.32~preview3)" ]'
-# 4.3.32 is released: it reaches the stable suite.
-r32="4.3.32-1~~xymon$v+1"
-fake "$work/a8/pub-$c-$arch" "$r32"
+# 4.3.32 is released, and Debian has not packaged it: built here from the
+# upstream tag, as the pre-releases are, so from a pre-* artifact. Its
+# version says release, and it reaches the stable suite.
+r32="4.3.32-0~~xymon$v+$p1"
+fake "$work/a8/pre-$c-$arch" "$r32"
 publish "$work/a8"
+check "a release built from an upstream tag is filed in the stable suite" \
+	'has "$c" "$r32" && listed "$c" "$r32" && gone "$c-snapshot" "$r32" && gone "$c-preview" "$r32"'
 check "a released milestone keeps no preview" \
 	'gone "$c-preview" "$(pre 4.3.32~preview3)" && gone "$c-preview" "$(pre 4.3.32~preview2)"'
 check "$c-preview-next moves on to the following milestone" \
 	'listed "$c-preview-next" "$(pre 4.3.33~preview1)" && ! listed "$c-preview-next" "$(pre 4.3.32~preview3)"'
 check "the release outranks the snapshots and previews of its version" \
 	'update "$c $c-snapshot" && [ "$(candidate)" = "$r32" ]'
+# Debian then packages 4.3.32: its rebuild replaces the one built here.
+d32="4.3.32-1~~xymon$v+1"
+fake "$work/a8d/pub-$c-$arch" "$d32"
+publish "$work/a8d"
+check "the rebuild of Debian's package of that release is the candidate after it" \
+	'update "$c" && [ "$(candidate)" = "$d32" ]'
+check "and the one built from the tag stays available" 'has "$c" "$r32" && listed "$c" "$r32"'
 # And 4.3.33: no unreleased milestone is left.
 fake "$work/a9/pub-$c-$arch" "4.3.33-1~~xymon$v+1"
 publish "$work/a9"
