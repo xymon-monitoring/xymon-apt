@@ -50,7 +50,9 @@ secrets, the seeded archive repository, and Pages.
   what would shrink that surface: most of `12_hobbitvars.patch` is paths that
   a configure variable could carry, as `XYMONRUNDIR` now does for pidfiles.
 - **Remove `prerelease/skip-tests` lines as their upstream fixes merge.**
-  One today: `tests/web/showgraph-rrd-error-exit.sh`, until xymon#1024.
+  Two today: `tests/web/showgraph-rrd-error-exit.sh`, until xymon#1024, and
+  `tests/server/serverconfig-local-client.sh`, until a preview newer than
+  `preview-4.3.32-5`.
 - **One preview needing what `main` does not.** `prerelease/` is shared; a
   pull request in a preview that touches the same lines needs its own rebase
   and there is nowhere to put it.
