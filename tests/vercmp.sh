@@ -94,6 +94,26 @@ below "4.3.32~preview10-0~~xymon13+209912312359pfffffff" "4.3.32-1~~xymon13+1"
 # following a preview suite moves forward when a milestone ships.
 below "4.3.32-1~~xymon13+9" "4.3.33~preview1-0~~xymon13+202611251000pab12cd3"
 
+# A release built here from an upstream tag, before Debian packages it:
+# X.Y.Z-0~~xymon..., in the stable suite. Above every pre-release of X.Y.Z,
+# so their hosts move onto the release; advanced by a packaging rebuild; and
+# below every package Debian makes of X.Y.Z -- its own, its backport, and
+# this repository's rebuild of it -- so that Debian's replaces it.
+rel="4.3.32-0~~xymon13+202611251000pab12cd3"
+below "4.3.31-1~~xymon13+9" "$rel"
+below "4.3.31-1+deb13u1" "$rel"
+below "$snap" "$rel"
+below "4.3.32~git209912312359.fffffff-0~~xymon13+209912312359pfffffff" "$rel"
+below "4.3.32~preview10-0~~xymon13+209912312359pfffffff" "$rel"
+below "$rel" "4.3.32-0~~xymon13+202611261000p0000000"
+below "4.3.32-0~~xymon13+209912312359pfffffff" "4.3.32-1~~xymon13+1"
+below "4.3.32-0~~xymon13+209912312359pfffffff" "4.3.32-1"
+below "4.3.32-0~~xymon13+209912312359pfffffff" "4.3.32-1~bpo13+1"
+below "4.3.32-0~~xymon12+209912312359pfffffff" "4.3.32-0~~xymon13+202611010000p1111111"
+# And the next version's pre-releases follow it.
+below "$rel" "4.3.33~git202701010000.abcdefa-0~~xymon13+202701010000p1234abc"
+below "$rel" "4.3.33~preview1-0~~xymon13+202611251000pab12cd3"
+
 # A preview sorts above a snapshot of the same version ("~p" after "~g"),
 # the reverse of xymon-rpm. Either way the two are not to be enabled
 # together; this pins which one would win, so a change of scheme shows.
@@ -116,6 +136,13 @@ if [ -n "${1:-}" ]; then
 		x=${built%%~*}
 		below "$built" "$x-1~~xymon$VERSION_ID+1"
 		below "$built" "$x-1"
+		;;
+	*-0~~xymon*)
+		# A release built from an upstream tag: below Debian's first
+		# package of it, and this repository's rebuild of that one.
+		x=${built%%-0~~xymon*}
+		below "$built" "$x-1"
+		below "$built" "$x-1~~xymon$VERSION_ID+1"
 		;;
 	*)
 		below "$built" "$deb~bpo${VERSION_ID%%.*}+1"

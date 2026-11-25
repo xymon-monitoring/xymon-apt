@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       xymon_ref:
-        description: 'Empty: the stable rebuild of Debian''s package. Or a pre-release source: main, a branch or sha of xymon, pr/NNN, or preview-X.Y.Z-N'
+        description: 'Empty: the stable rebuild of Debian''s package. Or a pre-release source: main, a branch or sha of xymon, pr/NNN, preview-X.Y.Z-N, or a release tag rel-X.Y.Z'
         required: false
         default: ''
       # A published version is immutable: after a change in backport/ (e.g. a
@@ -220,19 +220,24 @@ jobs:
     # under the same name, which publish.sh leaves out -- a run that looks
     # like a publish and ships nothing.
     #
-    # Pre-release: every build of xymon's main (the nightly, a push here, a
-    # dispatch naming main) and a dispatched preview-* tag. Its version
-    # names the upstream commit and the packaging commit, so a build that
-    # changes neither brings nothing new and publishes nothing. A dispatch
-    # of any other ref -- a branch, a sha, a pull request -- leaves artifacts
-    # only.
+    # From upstream: every build of xymon's main (the nightly, a push here,
+    # a dispatch naming main), a dispatched preview-* tag, and a dispatched
+    # rel-* tag, a release Debian has not packaged yet. The version names
+    # what was built and the packaging commit, so a build that changes
+    # neither brings nothing new and publishes nothing; and it is the
+    # version that files a package, in a pre-release suite or, for a
+    # release, the stable one. build/prepare-source.sh takes only an exact
+    # tag for rel-*, so a branch of that name cannot pass for a release.
+    # A dispatch of any other ref -- a branch, a sha, a pull request --
+    # leaves artifacts only.
     if: >-
       github.event_name != 'pull_request'
       && github.ref == 'refs/heads/main'
       && (github.event_name != 'workflow_dispatch'
           || (github.event.inputs.xymon_ref == '' && github.event.inputs.publish == '1')
           || github.event.inputs.xymon_ref == 'main'
-          || startsWith(github.event.inputs.xymon_ref, 'preview-'))
+          || startsWith(github.event.inputs.xymon_ref, 'preview-')
+          || startsWith(github.event.inputs.xymon_ref, 'rel-'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Two overlapping runs would both clone the archive and both force-push
@@ -301,8 +306,10 @@ jobs:
             { echo "::error::the secret key is $fpr, the fingerprint file names $want"; exit 1; }
           echo "XYMON_GPG_KEY=$fpr" >> "$GITHUB_ENV"
 
-      # One line per publish. A push or a cron run builds both, and its
-      # stable packages are tests, not a release.
+      # One line per publish: pub-* is the rebuild of Debian's package, pre-*
+      # everything built from an upstream tree, a release tag included. A
+      # push or a cron run builds both, and its pub-* packages are tests,
+      # not a release.
       - uses: actions/download-artifact@v4
         if: steps.key.outputs.ok == 'true'
         with:
