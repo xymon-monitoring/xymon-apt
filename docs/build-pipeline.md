@@ -11,14 +11,16 @@ package, and **pre**, the same packaging on an upstream tree (README
   for both it is the drift detector, of upstream against Debian's packaging
   and of the distributions against the install;
 - manual dispatch. With `xymon_ref` empty it builds the stable line alone;
-  with `main`, a branch or sha of xymon, a pull request of it as `pr/NNN`, or
-  `preview-X.Y.Z-N`, the pre-release
+  with `main`, a branch or sha of xymon, a pull request of it as `pr/NNN`,
+  `preview-X.Y.Z-N`, or a release tag `rel-X.Y.Z`, the pre-release
   line alone from that source.
 
 The nightly `previews.yml` (`47 1 * * *`) dispatches it too: for each
 xymon-experimental milestone with no `rel-<milestone>` tag in xymon, its
-newest published preview, unless the archive already holds it. A failed build
-is dispatched again the next day, as the archive records successes alone.
+newest published preview, unless the archive already holds it; and for one
+that has the tag, `rel-<milestone>`, until the stable suites hold that
+version. A failed build is dispatched again the next day, as the archive
+records successes alone.
 
 `attribution.yml` is separate: a credit line says nothing about whether the
 packages are good, so it does not stand between a tested build and its signing.
@@ -77,8 +79,11 @@ publishes one line per run:
   push or the cron: those rebuild a version that may be published already,
   and a rebuild has different bytes under the same name, which `publish.sh`
   leaves out;
-- **pre-release**, for every build of xymon's `main` (the cron, a push, a
-  dispatch naming `main`) and for a dispatched `preview-*` tag. The version
+- **from upstream**, for every build of xymon's `main` (the cron, a push, a
+  dispatch naming `main`), for a dispatched `preview-*` tag, and for a
+  dispatched `rel-*` tag, a release Debian has not packaged yet. The
+  version files each package: a snapshot or a preview in its suite, a
+  release in the stable one. The version
   names the upstream commit and the packaging commit, so a run that changes
   neither publishes nothing. A push or cron run built the stable line too;
   those packages are tests and are not downloaded.

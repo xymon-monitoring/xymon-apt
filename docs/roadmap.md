@@ -23,15 +23,19 @@ secrets, the seeded archive repository, and Pages.
 - **Review policy for this repo.** `main` is unprotected, as in xymon-rpm,
   whose [roadmap](https://github.com/xymon-monitoring/xymon-rpm/blob/main/docs/roadmap.md)
   weighs the options. Decide the two together.
-- **A release before Debian uploads it.** When xymon tags `rel-X.Y.Z`, its
-  previews stop, and the stable suite gets X.Y.Z only once Debian uploads it
-  and `source.dsc.sha256` is bumped by hand. Until then a preview host stays
-  on the last preview and a stable host on the previous version. xymon-rpm
-  builds the tag the same night. The counterpart here would be the pre-release
-  recipe on the tag, as `X.Y.Z-0~~xymon…`, which sorts below Debian's
-  `X.Y.Z-1` and so yields to it. It would also put this repository's reading
-  of the packaging (`prerelease/`) in the stable suite, which today holds
-  Debian's package and nothing else. Decide when 4.3.32 is close.
+- **A release before Debian uploads it** is built from upstream's tag.
+  *Decided 2026-11-25.* The stable suite would otherwise wait for Debian's
+  upload and a checksum set here by hand, with preview hosts on the last
+  preview meanwhile. README *Channels* has what is published and how it
+  yields to Debian's package. Two things follow from it and are not done:
+  - **the first one has not been built.** The path is the snapshot's, with
+    another version; no `rel-*` tag exists that `prerelease/` fits, so the
+    first real run is 4.3.32's. If it fails, `previews` dispatches it again
+    each night: fix `prerelease/` as for a red nightly.
+  - **the tarball is not checked against the release's `.sha256`**, as
+    xymon-rpm does. The packages are built from the tag's tree, by
+    `git archive`, and ship no source tarball; the check would tie a build
+    to the published release rather than to the tag alone.
 - **A keyring package**, the counterpart of xymon-rpm's `xymon-release`: a
   small `.deb` carrying the key and the sources file, so a key renewal reaches
   hosts through `apt upgrade` instead of a file fetched again by hand

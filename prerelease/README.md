@@ -1,8 +1,10 @@
 # prerelease/
 
 What Debian's packaging needs to build an upstream newer than the one it
-packages. Used only for pre-release builds, the snapshot and preview suites
-(README *Channels*); a stable rebuild never reads this directory.
+packages. Used for every build from an upstream tree: the snapshot and
+preview suites, and a release built from upstream's tag before Debian has
+packaged it (README *Channels*). The rebuild of a Debian upload never reads
+this directory.
 
 A pre-release is Debian's `debian/` directory, from the `.dsc` pinned in
 `source.dsc.sha256`, on an upstream tree made by `build/prepare-source.sh`.
@@ -64,8 +66,8 @@ Debian's maintainers have not packaged the version these builds lead to.
 What is here is the smallest change that makes their 4.3.31 packaging build
 and run on the newer upstream, keeping every choice they made: the same
 paths, the same included files, the same access rule. When they package that
-version they may choose differently, and theirs is the package that reaches
-the stable suite.
+version they may choose differently, and theirs then replaces, in the
+stable suite, the release built here from upstream's tag.
 
 ## When the build goes red
 

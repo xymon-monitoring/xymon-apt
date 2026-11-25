@@ -59,6 +59,9 @@ several times the size of the release's.
 
 - The workflow's own publish steps: the archive clone, the push, the Pages
   upload. `tests/publish.sh` covers the two scripts they call.
+- A release built from an upstream tag: no tag exists yet that
+  `prerelease/` fits. Its version is asserted to order, and `publish.sh` to
+  file it in the stable suite and end its previews; nothing has built one.
 - `previews.yml`, which only dispatches, and `build/prepare-source.sh`'s
   preview path outside a dispatched preview build: pushes and the cron build
   `main`.
