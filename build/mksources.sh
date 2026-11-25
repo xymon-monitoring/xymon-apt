@@ -32,6 +32,16 @@ cat <<EOF
 #
 # After a release upgrade, fetch this file again for the new release:
 # the suite below is $codename and nothing moves it.
+#
+# Pre-release channels are suites of their own, to add to Suites below
+# deliberately, per host. They are empty until such builds are published:
+#
+#   $codename-snapshot      builds of upstream main, with no release testing
+#   $codename-preview       previews of every unreleased milestone
+#   $codename-preview-next  previews of the next release alone
+#
+# e.g. "Suites: $codename $codename-snapshot". Add one of them, not a
+# snapshot together with a preview: they are different lines of code.
 Types: deb
 URIs: $base
 Suites: $codename

@@ -269,8 +269,11 @@ jobs:
           gpg --batch --yes --dearmor -o published/xymon-archive-keyring.gpg xymon-archive-keyring.asc
           # One sources file per suite the tree serves, not per target built:
           # a suite whose target left the matrix is still published.
+          # The channel suites (<codename>-snapshot, ...) get none: a host
+          # enables one by adding it to the Suites of its release's file.
           for d in published/dists/*/; do
             c=$(basename "$d")
+            case "$c" in *-snapshot|*-preview|*-preview-next) continue ;; esac
             mkdir -p "published/$c"
             ./build/mksources.sh "$c" > "published/$c/xymon.sources"
           done
